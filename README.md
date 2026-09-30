@@ -1,4 +1,4 @@
-<html lang="en" class="dark">
+<html lang="en" class="dark fixed inset-0 w-full h-full overflow-hidden">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -12,67 +12,51 @@
           colors: {
             panel: '#0f172a',
             canvas: '#020617',
-            kv500: '#0000FF',
-            kv230: '#ED3237',
-            kv138: '#F58220',
-            kv69:  '#66FFFF',
-            kv40:  '#66CC33',
-            kv7:   '#993399'
+            kv500: '#3b82f6',
+            kv230: '#ef4444',
+            kv138: '#f97316',
+            kv69:  '#06b6d4',
+            kv40:  '#22c55e',
+            kv7:   '#a855f7'
           }
         }
       }
     }
   </script>
   <style>
-    /* CRITICAL SAFARI / iOS / MOBILE FIXES */
     html, body { 
-        width: 100%; height: 100%; margin: 0; padding: 0; 
-        overflow: hidden; position: fixed; 
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        width: 100%; height: 100%; height: 100dvh; 
+        margin: 0; padding: 0; overflow: hidden;
         -webkit-text-size-adjust: 100%;
+        overscroll-behavior: none;
     }
-    .no-touch { 
-        touch-action: none; 
-        -webkit-user-select: none; 
-        user-select: none; 
-    }
+    .no-touch { touch-action: none; -webkit-user-select: none; user-select: none; }
+    input, select { -webkit-user-select: auto; user-select: auto; touch-action: auto; }
     
     @keyframes dashFlow { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
     @keyframes pulseWarning {
       0%, 100% { stroke: #ef4444; filter: drop-shadow(0 0 6px #ef4444); }
-      50% { stroke: #f87171; filter: drop-shadow(0 0 12px #ef4444); }
-    }
-    @keyframes toastFadeInOut {
-      0% { opacity: 0; transform: translateY(-20px); }
-      10% { opacity: 1; transform: translateY(0); }
-      90% { opacity: 1; transform: translateY(0); }
-      100% { opacity: 0; transform: translateY(-20px); }
+      50% { stroke: #fca5a5; filter: drop-shadow(0 0 12px #ef4444); }
     }
     .flow-line { stroke-dasharray: 8 8; animation: dashFlow 1s linear infinite; }
     .overload { animation: pulseWarning 1s ease-in-out infinite !important; stroke-width: 3px !important; }
     .canvas-bg { background-image: radial-gradient(circle, #334155 1px, transparent 1px); background-size: 30px 30px; }
-    .toast { animation: toastFadeInOut 3s ease-in-out forwards; }
     
-    /* Scrollbars for panels */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
     
-    .resizer {
-      width: 6px;
-      background: #1e293b;
-      cursor: col-resize;
-      transition: background 0.2s;
-      z-index: 40;
-    }
+    .resizer { width: 6px; background: #1e293b; cursor: col-resize; z-index: 40; flex-shrink: 0; }
     .resizer:hover, .resizer:active { background: #6366f1; }
   </style>
 </head>
 <body class="bg-canvas text-slate-200 font-sans flex flex-col no-touch">
 
-  <header class="h-12 border-b border-slate-700 bg-panel px-3 flex items-center justify-between z-30 shrink-0 shadow-md">
+  <header class="h-14 border-b border-slate-700 bg-panel px-3 flex items-center justify-between z-30 shrink-0 shadow-md">
     <div class="flex items-center gap-2">
-      <div class="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center font-bold font-mono text-white text-[11px] shadow-[0_0_8px_rgba(79,70,229,0.5)]">SLD</div>
-      <h1 class="font-bold text-sm tracking-wide hidden sm:block text-slate-300">MARKET SIMULATOR</h1>
+      <div class="w-8 h-8 rounded bg-indigo-600 flex items-center justify-center font-bold font-mono text-white text-xs shadow-[0_0_8px_rgba(79,70,229,0.5)]">SLD</div>
+      <h1 class="font-bold text-sm tracking-wide hidden md:block text-slate-300">MARKET SIMULATOR</h1>
     </div>
 
     <div class="flex items-center gap-2 text-xs">
@@ -86,24 +70,20 @@
 
       <div class="w-px h-5 bg-slate-600 mx-1"></div>
 
-      <button class="px-3 py-1.5 rounded bg-emerald-600/80 hover:bg-emerald-500 text-white font-medium transition flex items-center gap-1" onclick="exportData()" title="Save Model to JSON File">
-        Export
-      </button>
-      <button class="px-3 py-1.5 rounded bg-amber-600/80 hover:bg-amber-500 text-white font-medium transition flex items-center gap-1" onclick="document.getElementById('fileUpload').click()" title="Load Model from JSON File">
-        Import
-      </button>
+      <button class="px-3 py-1.5 rounded bg-emerald-600/80 hover:bg-emerald-500 text-white font-medium transition" onclick="exportData()">Export</button>
+      <button class="px-3 py-1.5 rounded bg-amber-600/80 hover:bg-amber-500 text-white font-medium transition" onclick="document.getElementById('fileUpload').click()">Import</button>
       <input type="file" id="fileUpload" class="hidden" accept=".json" onchange="importData(event)">
       
-      <div class="w-px h-5 bg-slate-600 mx-1"></div>
-      <button class="px-3 py-1.5 rounded border border-red-900/50 text-red-400 hover:bg-red-900/50 transition" onclick="clearCanvas()" title="Clear Canvas">Clear</button>
+      <div class="w-px h-5 bg-slate-600 mx-1 hidden sm:block"></div>
+      <button class="px-3 py-1.5 rounded border border-red-900/50 text-red-400 hover:bg-red-900/50 transition hidden sm:block" onclick="clearCanvas()">Clear</button>
     </div>
   </header>
 
-  <div class="flex-1 flex overflow-hidden relative">
+  <div class="flex-1 flex overflow-hidden w-full h-full relative">
     
-    <aside id="leftPanel" class="w-[220px] bg-panel flex flex-col z-20 shrink-0 h-full border-r border-slate-800">
-      <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider shrink-0">Palette</div>
-      <div class="p-2 grid grid-cols-2 gap-2 flex-1 content-start overflow-y-auto pointer-events-auto" style="touch-action: pan-y;">
+    <aside id="leftPanel" class="w-[200px] md:w-[240px] bg-panel flex flex-col z-20 shrink-0 h-full border-r border-slate-800">
+      <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider shrink-0 bg-slate-900/50">Palette</div>
+      <div class="p-2 grid grid-cols-2 gap-2 flex-1 overflow-y-auto pointer-events-auto" style="touch-action: pan-y;">
         <button onclick="spawnComponent('BUS')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
           <div class="w-10 h-1.5 bg-kv230 rounded-sm group-hover:scale-110 transition-transform"></div>
           <span class="text-[10px] font-medium">Busbar</span>
@@ -139,14 +119,14 @@
         <div class="font-bold text-slate-400 mb-2 uppercase text-[10px]">Live System Balance</div>
         <div class="flex justify-between text-slate-300 mb-1"><span>Generation:</span> <span id="lblGen" class="text-green-400 font-bold">0.0 MW</span></div>
         <div class="flex justify-between text-slate-300 mb-1"><span>Demand:</span> <span id="lblLoad" class="text-amber-400 font-bold">0.0 MW</span></div>
-        <div class="flex justify-between text-slate-300 pt-1 border-t border-slate-700"><span>Net / Loss:</span> <span id="lblLoss" class="text-red-400 font-bold">0.0 MW</span></div>
+        <div class="flex justify-between text-slate-300 pt-1 border-t border-slate-700"><span>Net Loss:</span> <span id="lblLoss" class="text-red-400 font-bold">0.0 MW</span></div>
       </div>
     </aside>
 
-    <div class="resizer no-touch shrink-0" id="resizerLeft"></div>
+    <div class="resizer no-touch hidden md:block" id="resizerLeft"></div>
 
-    <main id="viewportContainer" class="flex-1 relative canvas-bg overflow-hidden cursor-grab active:cursor-grabbing min-w-[200px] h-full no-touch">
-      <svg id="canvas" class="w-full h-full absolute inset-0 font-sans pointer-events-none">
+    <main id="viewportContainer" class="flex-1 relative canvas-bg overflow-hidden cursor-grab active:cursor-grabbing min-w-0 h-full no-touch">
+      <svg id="canvas" class="w-full h-full absolute inset-0 font-sans pointer-events-none block">
         <g id="transformGroup" transform="translate(0,0) scale(1)">
           <g id="layer-wires"></g>
           <g id="layer-flow"></g>
@@ -160,10 +140,10 @@
       </svg>
     </main>
 
-    <div class="resizer no-touch shrink-0" id="resizerRight"></div>
+    <div class="resizer no-touch hidden md:block" id="resizerRight"></div>
 
-    <aside id="rightPanel" class="w-[260px] bg-panel flex flex-col z-20 shrink-0 h-full border-l border-slate-800">
-      <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider flex justify-between items-center bg-slate-800/50 shrink-0">
+    <aside id="rightPanel" class="w-[220px] md:w-[280px] bg-panel flex flex-col z-20 shrink-0 h-full border-l border-slate-800">
+      <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider flex justify-between items-center bg-slate-900/50 shrink-0">
         <span>Inspector</span>
         <span id="insType" class="text-indigo-400 bg-indigo-900/40 px-1.5 py-0.5 rounded border border-indigo-700/50">NONE</span>
       </div>
@@ -173,17 +153,16 @@
           Select an element to inspect and edit.<br><br><b>R</b> to rotate.<br><b>Del</b> to remove.
         </div>
 
-        <!-- Static DOM data-binding to prevent keyboard drop -->
-        <div id="inspector-form" class="hidden flex flex-col gap-4">
+        <div id="inspector-form" class="hidden flex flex-col gap-3">
           
           <div id="wrap-name">
-            <label class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Identifier Name</label>
-            <input id="prop-name" type="text" oninput="updateParam('name', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-slate-200 transition">
+            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Identifier Name</label>
+            <input id="prop-name" type="text" oninput="updateParam('name', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
           </div>
 
           <div id="wrap-kv" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Voltage Level</label>
-            <select id="prop-kv" onchange="updateParam('kv', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Voltage Level</label>
+            <select id="prop-kv" onchange="updateParam('kv', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
               <option value="500">500 kV (Blue)</option>
               <option value="230">230 kV (Red)</option>
               <option value="138">138 kV (Orange)</option>
@@ -194,47 +173,46 @@
           </div>
 
           <div id="wrap-len" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Bus Length (px)</label>
-            <input id="prop-len" type="number" oninput="updateParam('len', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Bus Length (px)</label>
+            <input id="prop-len" type="number" oninput="updateParam('len', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
           </div>
 
           <div id="wrap-pmw" class="hidden">
-            <label id="lbl-pmw" class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Active Power (MW)</label>
-            <input id="prop-pmw" type="number" oninput="updateParam('pMW', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label id="lbl-pmw" class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Active Power (MW)</label>
+            <input id="prop-pmw" type="number" oninput="updateParam('pMW', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
           </div>
 
           <div id="wrap-maxmw" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Max Capacity (MW)</label>
-            <input id="prop-maxmw" type="number" oninput="updateParam('maxMW', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Max Capacity (MW)</label>
+            <input id="prop-maxmw" type="number" oninput="updateParam('maxMW', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
           </div>
 
           <div id="wrap-xpu" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Reactance (X p.u.)</label>
-            <input id="prop-xpu" type="number" oninput="updateParam('xpu', Number(this.value))" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Reactance (X p.u.)</label>
+            <input id="prop-xpu" type="number" oninput="updateParam('xpu', Number(this.value))" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
           </div>
 
           <div id="wrap-limit" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Thermal Limit (MW)</label>
-            <input id="prop-limit" type="number" oninput="updateParam('limit', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Thermal Limit (MW)</label>
+            <input id="prop-limit" type="number" oninput="updateParam('limit', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
           </div>
 
-          <div id="wrap-rotate" class="hidden mt-1">
-            <button id="btn-rotate" onclick="toggleRotate()" class="w-full bg-slate-800 hover:bg-slate-700 py-2 rounded border border-slate-600 transition flex justify-center items-center gap-2 font-medium">
+          <div id="wrap-rotate" class="hidden mt-2">
+            <button onclick="toggleRotate()" class="w-full bg-slate-800 hover:bg-slate-700 py-1.5 rounded border border-slate-600 transition flex justify-center items-center font-medium">
               <span id="txt-rotate">Orientation</span>
             </button>
           </div>
 
-          <div id="wrap-breaker" class="hidden mt-1">
-            <button id="btn-breaker" onclick="toggleBreaker()" class="w-full py-2.5 font-bold rounded border shadow-sm transition tracking-wider text-xs"></button>
+          <div id="wrap-breaker" class="hidden mt-2">
+            <button id="btn-breaker" onclick="toggleBreaker()" class="w-full py-2 font-bold rounded border shadow-sm transition tracking-wider text-xs"></button>
           </div>
 
-          <div class="mt-4 pt-4 border-t border-slate-700/80 flex flex-col gap-2 shrink-0">
-            <!-- NEW: Duplicate Button -->
-            <button onclick="duplicateElement()" class="w-full bg-indigo-900/20 text-indigo-400 hover:bg-indigo-900/40 py-2 rounded border border-indigo-900/50 transition font-bold flex justify-center items-center gap-1.5">
-               Duplicate Element
+          <div class="mt-4 pt-3 border-t border-slate-700/80 flex flex-col gap-2 shrink-0">
+            <button onclick="duplicateElement()" class="w-full bg-indigo-900/20 text-indigo-400 hover:bg-indigo-900/40 py-1.5 rounded border border-indigo-900/50 transition font-bold flex justify-center items-center">
+               Duplicate
             </button>
-            <button onclick="deleteElement()" class="w-full bg-red-900/20 text-red-500 hover:bg-red-900/40 py-2 rounded border border-red-900/50 transition font-bold flex justify-center items-center gap-1.5">
-               Delete Selected
+            <button onclick="deleteElement()" class="w-full bg-red-900/20 text-red-500 hover:bg-red-900/40 py-1.5 rounded border border-red-900/50 transition font-bold flex justify-center items-center">
+               Delete
             </button>
           </div>
         </div>
@@ -246,7 +224,7 @@
   <div id="toastContainer" class="absolute top-16 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <script>
-    const V_COLORS = { '500':'#0000FF', '230':'#ED3237', '138':'#F58220', '69':'#66FFFF', '40':'#66CC33', '7':'#993399' };
+    const V_COLORS = { '500':'#3b82f6', '230':'#ef4444', '138':'#f97316', '69':'#06b6d4', '40':'#22c55e', '7':'#a855f7' };
     let state = { buses: [], components: [], wires: [] };
     
     let mode = 'SELECT'; 
@@ -269,10 +247,10 @@
     function showToast(msg, type='info') {
       const colors = type==='error'?'bg-red-900 border-red-500 text-red-200' : 'bg-emerald-900 border-emerald-500 text-emerald-200';
       const t = document.createElement('div');
-      t.className = `toast px-4 py-2 rounded border ${colors} shadow-lg text-sm font-medium z-50`;
+      t.className = `px-4 py-2 rounded border ${colors} shadow-lg text-sm font-medium z-50 transition-opacity duration-500`;
       t.innerText = msg;
       $('toastContainer').appendChild(t);
-      setTimeout(() => t.remove(), 3000);
+      setTimeout(() => { t.style.opacity = '0'; setTimeout(()=>t.remove(), 500); }, 2500);
     }
 
     const getBus = id => state.buses.find(b => b.id === id);
@@ -280,17 +258,21 @@
 
     function initSplitters() {
       let isResizing = null;
-      $('resizerLeft').addEventListener('pointerdown', e => { isResizing = 'left'; e.preventDefault(); $('resizerLeft').setPointerCapture(e.pointerId); });
-      $('resizerRight').addEventListener('pointerdown', e => { isResizing = 'right'; e.preventDefault(); $('resizerRight').setPointerCapture(e.pointerId); });
+      const left = $('resizerLeft');
+      const right = $('resizerRight');
+      if(!left || !right) return;
+      
+      left.addEventListener('pointerdown', e => { isResizing = 'left'; e.preventDefault(); left.setPointerCapture(e.pointerId); });
+      right.addEventListener('pointerdown', e => { isResizing = 'right'; e.preventDefault(); right.setPointerCapture(e.pointerId); });
       
       window.addEventListener('pointermove', e => {
         if (!isResizing) return;
         if (isResizing === 'left') {
           let w = e.clientX;
-          if (w > 120 && w < 400) $('leftPanel').style.width = w + 'px';
+          if (w > 150 && w < 400) $('leftPanel').style.width = w + 'px';
         } else if (isResizing === 'right') {
           let w = document.body.clientWidth - e.clientX;
-          if (w > 150 && w < 500) $('rightPanel').style.width = w + 'px';
+          if (w > 180 && w < 400) $('rightPanel').style.width = w + 'px';
         }
       });
       window.addEventListener('pointerup', () => { isResizing = null; });
@@ -353,6 +335,7 @@
         }
       });
       if(best) return best;
+      
       minDist = 200;
       state.wires.forEach(w => {
         if(wireSourceTerm && (w.src === wireSourceTerm || w.tgt === wireSourceTerm)) return; 
@@ -466,11 +449,15 @@
         const w = b.rot === 'H' ? b.len : 12, h = b.rot === 'H' ? 12 : b.len;
         const color = b.energized ? (V_COLORS[b.kv] || '#888') : '#475569';
         
-        let g = createSVG('g', { class: 'pointer-events-auto cursor-pointer hover:brightness-110 transition-all' });
+        let g = createSVG('g', { class: 'pointer-events-auto cursor-pointer hover:brightness-125 transition-all' });
         g.addEventListener('pointerdown', e => startDrag(e, 'BUS', b.id));
 
         g.appendChild(createSVG('rect', { x: b.x - w/2, y: b.y - h/2, width: w, height: h, rx: 3, fill: color, stroke: isSel ? '#ffffff' : 'none', 'stroke-width': 3 }));
-        if(b.len > 20) {
+        
+        // Hide small TAP buses if unselected
+        if(b.name === 'TAP' && b.len <= 16 && !isSel) {
+            g.style.opacity = '0.3';
+        } else if (b.len > 16) {
           let txt = createSVG('text', { x: b.x, y: b.y - h/2 - 6, fill: '#e2e8f0', 'font-size': 11, 'text-anchor': 'middle', class: 'pointer-events-none font-bold' });
           txt.textContent = b.name; layers.labels.appendChild(txt);
         }
@@ -517,12 +504,14 @@
         if(c.energized) {
           let lVal = createSVG('text', { x: 0, y: c.rot==='V'? -28 : -20, fill: '#fff', 'font-size': 11, 'font-weight': 'bold', 'text-anchor': 'middle', class: 'pointer-events-none' });
           lVal.setAttribute('paint-order', 'stroke'); lVal.setAttribute('stroke', '#020617'); lVal.setAttribute('stroke-width', '3px');
+          
           if(c.type === 'GEN') { lVal.textContent = `+${c.pMW} MW`; lVal.setAttribute('fill', '#4ade80'); }
           else if(c.type === 'LOAD') { lVal.textContent = `-${c.pMW} MW`; lVal.setAttribute('fill', '#fbbf24'); }
           else if(['LINE', 'XFMR'].includes(c.type)) {
             let absFlow = Math.abs(c.pFlow || 0); let overloaded = absFlow > Number(c.limit);
             lVal.textContent = `${absFlow.toFixed(1)} MW`; lVal.setAttribute('fill', overloaded ? '#f87171' : '#38bdf8');
             if(overloaded) gRot.appendChild(createSVG('rect', { x: -20, y: -16, width: 40, height: 32, rx:4, fill: 'none', stroke: '#ef4444', 'stroke-width': 3, class: 'overload' }));
+            
             if(absFlow > 0.1) {
               let speed = Math.max(0.2, 1.5 - (absFlow / 500)); 
               let flowLine = createSVG('line', { x1: c.flowingT1toT2 ? -15 : 15, y1: 0, x2: c.flowingT1toT2 ? 15 : -15, y2: 0, stroke: '#ffffff', 'stroke-width': 2, class: 'flow-line pointer-events-none drop-shadow-[0_0_3px_#fff]' });
@@ -573,7 +562,8 @@
         if(snapTarget) {
           if(snapTarget.type === 'term') tgt = snapTarget.id;
           else if (snapTarget.type === 'wire') {
-             let jId = genId('J');
+             // T-Tap Implementation
+             let jId = genId('B');
              state.buses.push({ id: jId, name: `TAP`, x: snapTarget.x, y: snapTarget.y, len: 14, rot: 'H', kv: '230' }); 
              let oldWire = snapTarget.wireObj;
              state.wires = state.wires.filter(w => w.id !== oldWire.id);
@@ -591,14 +581,8 @@
     }
 
     function startDrag(e, type, id) {
-      e.stopPropagation();
-      e.preventDefault();
-      
-      if(mode === 'WIRE') {
-        handleWiring(type, id, e.clientX, e.clientY);
-        return;
-      }
-      
+      e.stopPropagation(); e.preventDefault();
+      if(mode === 'WIRE') { handleWiring(type, id, e.clientX, e.clientY); return; }
       if(mode !== 'SELECT') return;
       
       let el = type === 'BUS' ? getBus(id) : getComp(id);
@@ -607,7 +591,6 @@
       let my = (e.clientY - rect.top - vp.y) / vp.scale;
       dragElement = { obj: el, offsetX: el.x - mx, offsetY: el.y - my };
       selectElement(type, id);
-      
       container.setPointerCapture(e.pointerId);
     }
 
@@ -650,8 +633,7 @@
     });
 
     window.addEventListener('pointerup', e => { 
-      vp.isDragging = false; 
-      dragElement = null; 
+      vp.isDragging = false; dragElement = null; 
       try { container.releasePointerCapture(e.pointerId); } catch(err) {} 
     });
 
@@ -714,34 +696,26 @@
     function updateParam(key, val) {
       if(!selectedId) return;
       let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
-      if(el) { el[key] = val; render(); }
+      if(el) { el[key] = val; render(); } // Instantly trigger solvePowerFlow via render
     }
 
     function toggleRotate() {
       let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
-      if(el) {
-        el.rot = el.rot === 'H' ? 'V' : 'H';
-        $('txt-rotate').textContent = el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕';
-        render();
-      }
+      if(el) { el.rot = el.rot === 'H' ? 'V' : 'H'; $('txt-rotate').textContent = el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕'; render(); }
     }
 
     function toggleBreaker() {
       let el = getComp(selectedId);
-      if(el && el.type === 'BREAKER') {
-        el.status = el.status === 'CLOSED' ? 'OPEN' : 'CLOSED';
-        updateBreakerButton(el.status);
-        render();
-      }
+      if(el && el.type === 'BREAKER') { el.status = el.status === 'CLOSED' ? 'OPEN' : 'CLOSED'; updateBreakerButton(el.status); render(); }
     }
     
     function updateBreakerButton(status) {
       const btn = $('btn-breaker');
       if (status === 'CLOSED') {
-         btn.className = "w-full py-2.5 font-bold rounded border shadow-sm transition tracking-wider text-xs bg-red-900/30 text-red-400 border-red-800";
+         btn.className = "w-full py-2 font-bold rounded border shadow-sm transition tracking-wider text-xs bg-red-900/30 text-red-400 border-red-800";
          btn.textContent = "TRIP (OPEN)";
       } else {
-         btn.className = "w-full py-2.5 font-bold rounded border shadow-sm transition tracking-wider text-xs bg-green-900/30 text-green-400 border-green-800";
+         btn.className = "w-full py-2 font-bold rounded border shadow-sm transition tracking-wider text-xs bg-green-900/30 text-green-400 border-green-800";
          btn.textContent = "CLOSE BREAKER";
       }
     }
@@ -750,21 +724,11 @@
       if(!selectedId) return;
       let original = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
       if(!original) return;
-
       let duplicate = JSON.parse(JSON.stringify(original));
       duplicate.id = genId(selectedType === 'BUS' ? 'B' : 'C');
-      duplicate.x = original.x + 20;
-      duplicate.y = original.y + 20;
-      duplicate.name = original.name + ' (Copy)';
-
-      if(selectedType === 'BUS') {
-        state.buses.push(duplicate);
-      } else {
-        state.components.push(duplicate);
-      }
-
-      showToast("Element Duplicated");
-      selectElement(selectedType, duplicate.id);
+      duplicate.x = original.x + 30; duplicate.y = original.y + 30; duplicate.name = original.name + ' (Copy)';
+      if(selectedType === 'BUS') state.buses.push(duplicate); else state.components.push(duplicate);
+      showToast("Element Duplicated"); selectElement(selectedType, duplicate.id);
     }
 
     window.deleteElement = function() {
@@ -781,14 +745,10 @@
       else if (e.key.toLowerCase() === 'v') setMode('SELECT');
       else if (e.key.toLowerCase() === 'w') setMode('WIRE');
       else if (e.key === 'Delete' || e.key === 'Backspace') deleteElement();
-      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
-         e.preventDefault(); duplicateElement();
-      }
     });
 
     function exportData() {
-      const a = document.createElement('a');
-      a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+      const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
       a.download = 'grid_model.json'; a.click(); showToast("Exported Successfully!");
     }
     function importData(e) {
