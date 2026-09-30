@@ -1,1040 +1,1006 @@
-<html lang="en" class="h-full bg-slate-950 text-slate-100 dark select-none">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SLD Power Grid Builder & Network Flow Simulator</title>
-  <!-- Tailwind CSS CDN -->
+  <title>Advanced SLD Market Simulator</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Phosphor Icons -->
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
           colors: {
-            grid: {
-              bg: '#0B0F17',
-              panel: '#111827',
-              border: '#1F2937',
-              bus230: '#EF4444',
-              bus138: '#F97316',
-              bus69: '#10B981',
-              bus13: '#3B82F6'
-            }
-          },
-          fontFamily: {
-            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
-            sans: ['Inter', 'system-ui', 'sans-serif']
+            panel: '#0f172a',
+            canvas: '#020617',
+            kv500: '#0000FF',
+            kv230: '#ED3237',
+            kv138: '#F58220',
+            kv69:  '#66FFFF',
+            kv40:  '#66CC33',
+            kv7:   '#993399'
           }
         }
       }
     }
   </script>
   <style>
-    @keyframes flowParticle {
-      from { stroke-dashoffset: 24; }
+    @keyframes dashFlow {
+      from { stroke-dashoffset: 20; }
       to { stroke-dashoffset: 0; }
     }
+    @keyframes pulseWarning {
+      0%, 100% { stroke: #ef4444; filter: drop-shadow(0 0 6px #ef4444); }
+      50% { stroke: #f87171; filter: drop-shadow(0 0 12px #ef4444); }
+    }
+    @keyframes toastFadeInOut {
+      0% { opacity: 0; transform: translateY(-20px); }
+      10% { opacity: 1; transform: translateY(0); }
+      90% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-20px); }
+    }
     .flow-line {
-      stroke-dasharray: 6, 6;
-      animation: flowParticle 0.7s linear infinite;
+      stroke-dasharray: 8 8;
+      animation: dashFlow 1s linear infinite;
     }
-    .flow-reverse {
-      animation-direction: reverse;
+    .overload {
+      animation: pulseWarning 1s ease-in-out infinite !important;
+      stroke-width: 3px !important;
     }
-    .bg-grid-dots {
-      background-image: radial-gradient(circle, #1e293b 1px, transparent 1px);
-      background-size: 24px 24px;
+    .canvas-bg {
+      background-image: radial-gradient(circle, #334155 1px, transparent 1px);
+      background-size: 30px 30px;
+    }
+    .toast {
+      animation: toastFadeInOut 3s ease-in-out forwards;
     }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #0b0f17; }
-    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
   </style>
 </head>
-<body class="h-full flex flex-col font-sans overflow-hidden bg-grid-bg text-slate-200">
+<body class="h-screen w-screen overflow-hidden bg-canvas text-slate-200 font-sans flex flex-col select-none relative">
 
-  <header class="h-14 border-b border-grid-border bg-grid-panel px-4 flex items-center justify-between z-30 shrink-0">
-    <div class="flex items-center space-x-3">
-      <div class="p-2 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
-        <i class="ph-bold ph-circuit text-xl"></i>
-      </div>
-      <div>
-        <h1 class="font-bold text-slate-100 text-sm md:text-base flex items-center gap-2">
-          SLD NETWORK BUILDER & SOLVER
-          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">LIVE POWER FLOW</span>
-        </h1>
-        <p class="text-xs text-slate-400 hidden sm:block">Market Model Single Line Diagram Canvas & Auto-Solver</p>
-      </div>
+  <header class="h-14 border-b border-slate-700 bg-panel px-4 flex items-center justify-between z-30 shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded bg-indigo-600 flex items-center justify-center font-bold font-mono text-white text-xs shadow-[0_0_10px_rgba(79,70,229,0.5)]">SLD</div>
+      <h1 class="font-bold text-sm tracking-wide hidden md:block">MARKET NETWORK SIMULATOR <span class="text-xs font-normal text-slate-400 border border-slate-600 px-1 rounded ml-1 bg-slate-800">ULTIMATE</span></h1>
     </div>
 
-    <!-- Quick Actions Toolbar -->
-    <div class="flex items-center space-x-2">
-      <button id="wireToolBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
-        <i class="ph-bold ph-line-segments text-base text-blue-400"></i>
-        <span id="wireToolText">Connect Mode (Off)</span>
+    <div class="flex items-center gap-2 text-sm">
+      <button id="btnSelect" class="px-3 py-1.5 rounded bg-indigo-600 text-white font-medium transition flex items-center gap-1 shadow-lg" onclick="setMode('SELECT')">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+        Select Mode (V)
+      </button>
+      <button id="btnWire" class="px-3 py-1.5 rounded border border-slate-600 hover:bg-slate-700 font-medium transition relative flex items-center gap-1" onclick="setMode('WIRE')">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        Wire Tool (W)
+        <span id="wireBadge" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping"></span>
       </button>
 
-      <button id="solveFlowBtn" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg text-xs transition flex items-center gap-1.5 shadow-lg shadow-blue-600/20">
-        <i class="ph-bold ph-arrows-clockwise text-sm"></i>
-        <span>Solve Grid Flow</span>
-      </button>
+      <div class="w-px h-6 bg-slate-600 mx-2"></div>
 
-      <div class="h-5 w-px bg-slate-800 my-auto"></div>
-
-      <button id="loadSampleBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition flex items-center gap-1">
-        <i class="ph-bold ph-folder-open text-sm"></i> Sample 5-Bus
+      <button class="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition flex items-center gap-1" onclick="exportData()" title="Save Model to JSON File">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+        Export
       </button>
-
-      <button id="clearCanvasBtn" class="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/40 rounded-lg text-xs transition flex items-center gap-1">
-        <i class="ph-bold ph-trash text-sm"></i> Clear
+      <button class="px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-medium transition flex items-center gap-1" onclick="document.getElementById('fileUpload').click()" title="Load Model from JSON File">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+        Import
       </button>
-
-      <button id="exportJsonBtn" class="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition" title="Export JSON">
-        <i class="ph-bold ph-download-simple text-base"></i>
-      </button>
-
-      <button id="importJsonBtn" class="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition" title="Import JSON">
-        <i class="ph-bold ph-upload-simple text-base"></i>
-      </button>
-      <input type="file" id="importFileInput" accept=".json" class="hidden">
+      <input type="file" id="fileUpload" class="hidden" accept=".json" onchange="importData(event)">
+      
+      <div class="w-px h-6 bg-slate-600 mx-1"></div>
+      <button class="px-2 py-1.5 rounded border border-red-900 text-red-400 hover:bg-red-900/50 transition" onclick="clearCanvas()" title="Clear Canvas">🗑️</button>
     </div>
   </header>
 
   <div class="flex-1 flex overflow-hidden relative">
-
-    <!-- Left Toolbar Palette -->
-    <aside class="w-64 border-r border-grid-border bg-grid-panel p-3 flex flex-col shrink-0 z-20 space-y-4">
-      <div>
-        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono mb-2">Grid Component Palette</h3>
-        <p class="text-[11px] text-slate-500 mb-3">Click any element below to drop it onto the canvas canvas area:</p>
-
-        <div class="space-y-2">
-          <button onclick="spawnElement('BUS')" class="w-full p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center justify-between text-xs transition group">
-            <div class="flex items-center gap-2.5">
-              <div class="w-6 h-1.5 bg-red-500 rounded"></div>
-              <span class="font-medium text-slate-200">Substation Bus</span>
-            </div>
-            <i class="ph-bold ph-plus text-slate-500 group-hover:text-blue-400"></i>
-          </button>
-
-          <button onclick="spawnElement('GENERATOR')" class="w-full p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center justify-between text-xs transition group">
-            <div class="flex items-center gap-2.5">
-              <div class="w-6 h-6 rounded-full border-2 border-emerald-400 flex items-center justify-center font-bold text-[10px] text-emerald-400">G</div>
-              <span class="font-medium text-slate-200">Power Generator</span>
-            </div>
-            <i class="ph-bold ph-plus text-slate-500 group-hover:text-blue-400"></i>
-          </button>
-
-          <button onclick="spawnElement('LOAD')" class="w-full p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center justify-between text-xs transition group">
-            <div class="flex items-center gap-2.5">
-              <div class="w-6 h-6 rounded border-2 border-amber-400 flex items-center justify-center font-bold text-[10px] text-amber-400">L</div>
-              <span class="font-medium text-slate-200">System Load</span>
-            </div>
-            <i class="ph-bold ph-plus text-slate-500 group-hover:text-blue-400"></i>
-          </button>
-
-          <button onclick="spawnElement('TRANSFORMER')" class="w-full p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center justify-between text-xs transition group">
-            <div class="flex items-center gap-2.5">
-              <div class="w-6 h-6 flex items-center justify-center text-cyan-400 font-bold text-sm">88</div>
-              <span class="font-medium text-slate-200">Transformer</span>
-            </div>
-            <i class="ph-bold ph-plus text-slate-500 group-hover:text-blue-400"></i>
-          </button>
-
-          <button onclick="spawnElement('BREAKER')" class="w-full p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center justify-between text-xs transition group">
-            <div class="flex items-center gap-2.5">
-              <div class="w-5 h-5 bg-emerald-950 border border-emerald-500 rounded text-[9px] font-bold text-emerald-400 flex items-center justify-center">CB</div>
-              <span class="font-medium text-slate-200">Circuit Breaker</span>
-            </div>
-            <i class="ph-bold ph-plus text-slate-500 group-hover:text-blue-400"></i>
-          </button>
-        </div>
+    
+    <aside class="w-64 border-r border-slate-700 bg-panel flex flex-col z-20 shrink-0">
+      <div class="p-3 border-b border-slate-700 font-bold text-xs text-slate-400 uppercase tracking-wider">Palette</div>
+      <div class="p-3 grid grid-cols-2 gap-2 flex-1 content-start overflow-y-auto">
+        <button onclick="spawnComponent('BUS')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
+          <div class="w-12 h-2 bg-kv230 rounded-sm group-hover:scale-110 transition-transform"></div>
+          <span class="text-xs font-medium">Busbar</span>
+        </button>
+        <button onclick="spawnComponent('GEN')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
+          <div class="w-7 h-7 rounded-full border-[2.5px] border-green-500 text-green-500 flex items-center justify-center text-[11px] font-bold group-hover:scale-110 transition-transform">G</div>
+          <span class="text-xs font-medium">Generator</span>
+        </button>
+        <button onclick="spawnComponent('LOAD')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
+          <div class="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[18px] border-l-transparent border-r-transparent border-t-amber-500 group-hover:scale-110 transition-transform"></div>
+          <span class="text-xs font-medium">Load</span>
+        </button>
+        <button onclick="spawnComponent('LINE')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
+          <div class="w-12 h-0.5 bg-blue-400 relative group-hover:scale-110 transition-transform">
+            <div class="absolute -top-1.5 left-1/2 w-3 h-3 bg-blue-400 rounded-sm transform -translate-x-1/2"></div>
+          </div>
+          <span class="text-xs font-medium">Trans. Line</span>
+        </button>
+        <button onclick="spawnComponent('XFMR')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
+          <div class="flex items-center group-hover:scale-110 transition-transform">
+            <div class="w-6 h-6 rounded-full border-[2.5px] border-orange-400 -mr-2.5"></div>
+            <div class="w-6 h-6 rounded-full border-[2.5px] border-orange-400"></div>
+          </div>
+          <span class="text-xs font-medium">Transformer</span>
+        </button>
+        <button onclick="spawnComponent('BREAKER')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
+          <div class="w-6 h-6 border-2 border-red-500 bg-red-900 rounded flex items-center justify-center font-bold text-[10px] text-red-400 group-hover:scale-110 transition-transform">CB</div>
+          <span class="text-xs font-medium">Breaker</span>
+        </button>
       </div>
-
-      <hr class="border-slate-800">
-
-      <div>
-        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono mb-2">Instructions</h3>
-        <ul class="text-[11px] text-slate-400 space-y-1.5 list-disc pl-4">
-          <li><strong>Drag</strong> components to position them.</li>
-          <li>Click <strong>Connect Mode</strong> then click two buses (or Bus & Gen/Load) to wire them together.</li>
-          <li>Click any element to edit its <strong>MW, Reactance, or Rating</strong> in the Inspector.</li>
-          <li>Toggle Breakers OPEN/CLOSED to observe real-time power redistribution.</li>
-        </ul>
-      </div>
-
-      <!-- System Summary Stats -->
-      <div class="mt-auto bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-xs space-y-1.5">
-        <div class="flex justify-between text-slate-400">
-          <span>Total MW Generation:</span>
-          <span id="summaryTotalGen" class="font-mono text-emerald-400 font-bold">0.0 MW</span>
-        </div>
-        <div class="flex justify-between text-slate-400">
-          <span>Total MW Load:</span>
-          <span id="summaryTotalLoad" class="font-mono text-amber-400 font-bold">0.0 MW</span>
-        </div>
-        <div class="flex justify-between text-slate-400">
-          <span>Active Lines:</span>
-          <span id="summaryActiveLines" class="font-mono text-blue-400 font-bold">0</span>
-        </div>
+      
+      <div class="p-4 border-t border-slate-700 bg-slate-900 text-xs font-mono">
+        <div class="font-bold text-slate-400 mb-2 uppercase">Live System Stats</div>
+        <div class="flex justify-between text-slate-300 mb-1"><span>Generation:</span> <span id="lblGen" class="text-green-400 font-bold">0.0 MW</span></div>
+        <div class="flex justify-between text-slate-300 mb-1"><span>Demand:</span> <span id="lblLoad" class="text-amber-400 font-bold">0.0 MW</span></div>
+        <div class="flex justify-between text-slate-300"><span>Net Loss:</span> <span id="lblLoss" class="text-red-400 font-bold">0.0 MW</span></div>
       </div>
     </aside>
 
-    <!-- Canvas SVG Drawing Surface -->
-    <main id="canvasContainer" class="flex-1 relative overflow-hidden bg-grid-bg bg-grid-dots cursor-grab active:cursor-grabbing">
-      
-      <!-- Floating Canvas Overlay Controls -->
-      <div class="absolute top-4 left-4 z-10 flex gap-2">
-        <div class="bg-grid-panel/90 backdrop-blur border border-grid-border rounded-lg p-1 flex gap-1 shadow-xl">
-          <button id="zoomInBtn" class="p-1.5 hover:bg-slate-800 rounded text-slate-300" title="Zoom In">
-            <i class="ph-bold ph-magnifying-glass-plus text-base"></i>
-          </button>
-          <button id="zoomOutBtn" class="p-1.5 hover:bg-slate-800 rounded text-slate-300" title="Zoom Out">
-            <i class="ph-bold ph-magnifying-glass-minus text-base"></i>
-          </button>
-          <button id="resetViewBtn" class="p-1.5 hover:bg-slate-800 rounded text-slate-300" title="Fit View">
-            <i class="ph-bold ph-arrows-out-line text-base"></i>
-          </button>
-        </div>
-
-        <div id="connectionStatusBadge" class="hidden bg-blue-600/20 text-blue-400 border border-blue-500/30 px-3 py-1.5 rounded-lg text-xs font-semibold items-center gap-2 shadow-xl animate-pulse">
-          <i class="ph-bold ph-plugs"></i>
-          <span>Click first node to connect...</span>
-        </div>
-      </div>
-
-      <!-- Dynamic SVG Viewport -->
-      <svg id="sldSvg" class="w-full h-full min-h-full min-w-full">
-        <g id="viewportGroup" transform="translate(40, 40) scale(1)">
-          <!-- Dynamic rendering layers -->
-          <g id="linesLayer"></g>
-          <g id="transformersLayer"></g>
-          <g id="shuntsLayer"></g>
-          <g id="breakersLayer"></g>
-          <g id="busesLayer"></g>
-          <g id="generatorsLayer"></g>
-          <g id="loadsLayer"></g>
-          <g id="interactiveConnectLayer"></g>
+    <main id="viewportContainer" class="flex-1 relative canvas-bg overflow-hidden cursor-grab active:cursor-grabbing">
+      <svg id="canvas" class="w-full h-full absolute inset-0 font-sans">
+        <g id="transformGroup" transform="translate(0,0) scale(1)">
+          <g id="layer-wires"></g>
+          <g id="layer-flow"></g>
+          <g id="layer-components"></g>
+          <g id="layer-buses"></g>
+          <g id="layer-snap-hints"></g>
+          <g id="layer-live-labels"></g> 
+          <!-- Active wiring line -->
+          <line id="activeWire" x1="0" y1="0" x2="0" y2="0" stroke="#f43f5e" stroke-width="2.5" stroke-dasharray="6 4" class="hidden pointer-events-none drop-shadow-[0_0_5px_#f43f5e]" />
+          <circle id="snapIndicator" cx="0" cy="0" r="8" fill="none" stroke="#22c55e" stroke-width="2" class="hidden pointer-events-none drop-shadow-[0_0_5px_#22c55e]" />
         </g>
       </svg>
+      <!-- HTML Overlay Tooltip -->
+      <div id="tooltip" class="absolute hidden bg-slate-800 border border-slate-600 rounded shadow-xl p-3 text-xs pointer-events-none z-50 w-48 text-slate-300 transition-opacity duration-150">
+        <!-- populated dynamically -->
+      </div>
     </main>
 
-    <!-- Right Side Inspector Panel -->
-    <aside class="w-80 border-l border-grid-border bg-grid-panel flex flex-col shrink-0 z-20 shadow-2xl">
-      <div class="p-3.5 border-b border-grid-border flex items-center justify-between bg-slate-900/50">
-        <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono flex items-center gap-1.5">
-          <i class="ph-bold ph-sliders-horizontal text-blue-400"></i> Element Inspector
-        </h2>
-        <span id="inspectTypeBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">NONE</span>
+    <aside class="w-72 border-l border-slate-700 bg-panel flex flex-col z-20 shrink-0 overflow-y-auto">
+      <div class="p-3 border-b border-slate-700 font-bold text-xs text-slate-400 uppercase tracking-wider flex justify-between items-center">
+        <span>Inspector</span>
+        <span id="insType" class="text-indigo-400 bg-indigo-900/30 px-2 py-0.5 rounded">NONE</span>
       </div>
-
-      <div id="inspectorContent" class="flex-1 overflow-y-auto p-4 space-y-4">
-        <div id="emptyInspectState" class="text-center py-12 px-4 border border-dashed border-slate-800 rounded-xl">
-          <i class="ph-duotone ph-cursor-click text-4xl text-slate-600 mb-2"></i>
-          <h3 class="text-xs font-semibold text-slate-400">No Element Selected</h3>
-          <p class="text-[11px] text-slate-500 mt-1">Click any element on the canvas to edit its properties or view computed power flow.</p>
-        </div>
-
-        <div id="inspectForm" class="hidden space-y-4">
-          <!-- Dynamically generated controls -->
-        </div>
-      </div>
-
-      <!-- Real-time Event Logger -->
-      <div class="border-t border-grid-border bg-slate-950 p-3 h-32 flex flex-col">
-        <div class="text-[11px] font-mono text-slate-400 mb-1 flex items-center justify-between font-semibold">
-          <span><i class="ph-bold ph-terminal text-blue-400"></i> Power Flow Diagnostics</span>
-          <button id="clearLogBtn" class="text-[9px] text-slate-500 hover:text-slate-300">Clear</button>
-        </div>
-        <div id="eventLog" class="flex-1 overflow-y-auto font-mono text-[10px] space-y-1 text-slate-400 bg-slate-900/50 rounded-lg p-2 border border-slate-800/80">
-          <div class="text-slate-500">[READY] Grid solver engine initialized.</div>
-        </div>
+      <div id="inspectorPanel" class="p-4 space-y-4">
+        <div class="text-center py-10 text-slate-500 text-sm">Select an element on the canvas to inspect and edit its parameters.</div>
       </div>
     </aside>
 
   </div>
 
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="absolute top-16 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
   <script>
-    // System Data Model State
-    let network = {
+    const V_COLORS = {
+      '500': '#0000FF', // Blue
+      '230': '#ED3237', // Red
+      '138': '#F58220', // Orange
+      '69':  '#66FFFF', // Cyan
+      '40':  '#66CC33', // Green
+      '7':   '#993399'  // Purple
+    };
+
+    let state = {
       buses: [],
-      generators: [],
-      loads: [],
-      lines: [],
-      transformers: [],
-      breakers: []
+      components: [],
+      wires: [] 
+    };
+    
+    let mode = 'SELECT'; 
+    let selectedId = null;
+    let selectedType = null; 
+    let wireSourceTerm = null; 
+    let currentHoverId = null;
+
+    let vp = { x: 50, y: 50, scale: 1, isDragging: false, startX: 0, startY: 0 };
+    let dragElement = null; 
+    let snapTarget = null; // { type: 'term'|'wire', id: string, x, y }
+
+    const genId = (prefix) => prefix + '_' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    const $ = id => document.getElementById(id);
+    const createSVG = (tag, attrs) => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      for (let k in attrs) el.setAttribute(k, attrs[k]);
+      return el;
     };
 
-    let selectedElement = null;
-    let wiringMode = false;
-    let wireSource = null;
-
-    // Viewport State
-    let zoomLevel = 1.0;
-    let panX = 40;
-    let panY = 40;
-    let isPanning = false;
-    let startPanX = 0;
-    let startPanY = 0;
-
-    // Element Dragging State
-    let draggingNode = null;
-    let dragOffsetX = 0;
-    let dragOffsetY = 0;
-
-    // Sample 5-Bus Power System Preset
-    const SAMPLE_5BUS_MODEL = {
-      buses: [
-        { id: "BUS_1", name: "Bus 1 (Corella 230kV)", kv: 230, x: 100, y: 150 },
-        { id: "BUS_2", name: "Bus 2 (Ubay Tie 230kV)", kv: 230, x: 450, y: 150 },
-        { id: "BUS_3", name: "Bus 3 (Corella 138kV)", kv: 138, x: 100, y: 380 },
-        { id: "BUS_4", name: "Bus 4 (Tapal 69kV)", kv: 69, x: 450, y: 380 },
-        { id: "BUS_5", name: "Bus 5 (Gen Bus 13.8kV)", kv: 13.8, x: 275, y: 520 }
-      ],
-      generators: [
-        { id: "GEN_1", name: "Corella Thermal", busId: "BUS_1", pMW: 120, pMax: 200, cost: 25 },
-        { id: "GEN_2", name: "Ubay Hydro", busId: "BUS_2", pMW: 80, pMax: 150, cost: 15 },
-        { id: "GEN_3", name: "Bohol Solar", busId: "BUS_5", pMW: 45, pMax: 60, cost: 5 }
-      ],
-      loads: [
-        { id: "LOAD_1", name: "City Center Load", busId: "BUS_3", pMW: 110 },
-        { id: "LOAD_2", name: "Industrial Zone", busId: "BUS_4", pMW: 95 },
-        { id: "LOAD_3", name: "Residential Load", busId: "BUS_2", pMW: 40 }
-      ],
-      lines: [
-        { id: "LINE_1_2", name: "230kV Tie Line 1-2", fromBus: "BUS_1", toBus: "BUS_2", xPu: 0.05, maxMW: 100 },
-        { id: "LINE_3_4", name: "138kV Substation Line 3-4", fromBus: "BUS_3", toBus: "BUS_4", xPu: 0.08, maxMW: 80 }
-      ],
-      transformers: [
-        { id: "TR_1_3", name: "TR1 (230/138kV)", fromBus: "BUS_1", toBus: "BUS_3", xPu: 0.03, mva: 150 },
-        { id: "TR_2_4", name: "TR2 (230/69kV)", fromBus: "BUS_2", toBus: "BUS_4", xPu: 0.04, mva: 120 },
-        { id: "TR_4_5", name: "TR3 (69/13.8kV)", fromBus: "BUS_4", toBus: "BUS_5", xPu: 0.02, mva: 80 }
-      ],
-      breakers: [
-        { id: "CB_1_2", name: "Breaker Line 1-2", elementId: "LINE_1_2", status: "CLOSED" },
-        { id: "CB_TR1", name: "Breaker TR 1-3", elementId: "TR_1_3", status: "CLOSED" }
-      ]
-    };
-
-    // Voltage Color Palette
-    function getVoltageColor(kv) {
-      if (kv >= 230) return '#EF4444'; // Red
-      if (kv >= 138) return '#F97316'; // Orange
-      if (kv >= 69) return '#10B981';  // Green
-      return '#3B82F6';                // Blue
+    function showToast(msg, type='info') {
+      const colors = type==='error'?'bg-red-900 border-red-500 text-red-200' : 'bg-emerald-900 border-emerald-500 text-emerald-200';
+      const t = document.createElement('div');
+      t.className = `toast px-4 py-2 rounded border ${colors} shadow-lg text-sm font-medium`;
+      t.innerText = msg;
+      $('toastContainer').appendChild(t);
+      setTimeout(() => t.remove(), 3000);
     }
 
-    // --- POWER FLOW SOLVER ENGINE ---
+    function getBus(id) { return state.buses.find(b => b.id === id); }
+    function getComp(id) { return state.components.find(c => c.id === id); }
+
+    function getRawTerminalPos(termId) {
+      if(getBus(termId)) return { isBus: true, busId: termId, type: 'BUS' };
+      let [compId, port] = termId.split('_T');
+      let c = getComp(compId);
+      if(!c) return {x:0, y:0};
+      
+      let isVert = c.rot === 'V';
+      
+      if(['LINE', 'XFMR', 'BREAKER'].includes(c.type)) {
+        if(isVert) {
+           return port === '1' ? {x: c.x, y: c.y - 24, type: 'COMP'} : {x: c.x, y: c.y + 24, type: 'COMP'};
+        } else {
+           return port === '1' ? {x: c.x - 24, y: c.y, type: 'COMP'} : {x: c.x + 24, y: c.y, type: 'COMP'};
+        }
+      } else {
+        return {x: c.x, y: c.y - 18, type: 'COMP'}; 
+      }
+    }
+
+    function getClosestPointOnBus(bus, px, py) {
+      if(!bus) return {x: px, y: py};
+      let hw = bus.rot === 'H' ? bus.len / 2 : 6;
+      let hh = bus.rot === 'H' ? 6 : bus.len / 2;
+      let cx = Math.max(bus.x - hw, Math.min(px, bus.x + hw));
+      let cy = Math.max(bus.y - hh, Math.min(py, bus.y + hh));
+      return {x: cx, y: cy};
+    }
+
+    function resolveWireCoordinates(srcTerm, tgtTerm) {
+      let p1 = getRawTerminalPos(srcTerm);
+      let p2 = getRawTerminalPos(tgtTerm);
+      
+      if(p1.isBus && p2.isBus) {
+        let b1 = getBus(p1.busId), b2 = getBus(p2.busId);
+        return { x1: b1.x, y1: b1.y, x2: b2.x, y2: b2.y };
+      }
+      if(p1.isBus) {
+        let b1 = getBus(p1.busId);
+        let cp = getClosestPointOnBus(b1, p2.x, p2.y);
+        return { x1: cp.x, y1: cp.y, x2: p2.x, y2: p2.y };
+      }
+      if(p2.isBus) {
+        let b2 = getBus(p2.busId);
+        let cp = getClosestPointOnBus(b2, p1.x, p1.y);
+        return { x1: p1.x, y1: p1.y, x2: cp.x, y2: cp.y };
+      }
+      return { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+    }
+
+    // Geometry math for T-Tapping wires
+    function dist2(v, w) { return (v.x - w.x)**2 + (v.y - w.y)**2; }
+    function distToSegmentSquared(p, v, w) {
+      let l2 = dist2(v, w);
+      if (l2 == 0) return dist2(p, v);
+      let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+      t = Math.max(0, Math.min(1, t));
+      return { dist2: dist2(p, { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) }), point: { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) } };
+    }
+
+    function findSnapTarget(mx, my) {
+      let best = null;
+      let minDist = 225; // 15px radius squared for terminals
+
+      // Check Terminals (Buses)
+      state.buses.forEach(b => {
+        let hw = b.rot === 'H' ? b.len / 2 : 6;
+        let hh = b.rot === 'H' ? 6 : b.len / 2;
+        let cx = Math.max(b.x - hw, Math.min(mx, b.x + hw));
+        let cy = Math.max(b.y - hh, Math.min(my, b.y + hh));
+        let d2 = dist2({x:mx, y:my}, {x:cx, y:cy});
+        if(d2 < minDist) { minDist = d2; best = { type: 'term', id: b.id, x: cx, y: cy }; }
+      });
+
+      // Check Terminals (Components)
+      state.components.forEach(c => {
+        let t1 = getRawTerminalPos(`${c.id}_T1`);
+        let d1 = dist2({x:mx, y:my}, t1);
+        if(d1 < minDist) { minDist = d1; best = { type: 'term', id: `${c.id}_T1`, x: t1.x, y: t1.y }; }
+        
+        if(['LINE', 'XFMR', 'BREAKER'].includes(c.type)) {
+          let t2 = getRawTerminalPos(`${c.id}_T2`);
+          let d2 = dist2({x:mx, y:my}, t2);
+          if(d2 < minDist) { minDist = d2; best = { type: 'term', id: `${c.id}_T2`, x: t2.x, y: t2.y }; }
+        }
+      });
+
+      // If we snapped to a terminal, return it
+      if(best) return best;
+
+      // Check Wires for mid-line tapping (T-Taps)
+      minDist = 100; // 10px radius squared for lines
+      state.wires.forEach(w => {
+        // don't snap to the wire we are currently drawing from
+        if(wireSourceTerm && (w.src === wireSourceTerm || w.tgt === wireSourceTerm)) return; 
+        
+        let c = resolveWireCoordinates(w.src, w.tgt);
+        let res = distToSegmentSquared({x:mx, y:my}, {x:c.x1, y:c.y1}, {x:c.x2, y:c.y2});
+        if(res.dist2 < minDist) {
+          minDist = res.dist2;
+          best = { type: 'wire', id: w.id, x: res.point.x, y: res.point.y, wireObj: w };
+        }
+      });
+
+      return best;
+    }
+
+    function getAvailableTerminal(type, id) {
+      if(type === 'BUS') return id; 
+      let c = getComp(id);
+      let usedTerms = new Set();
+      state.wires.forEach(w => {
+        if(w.src.startsWith(id)) usedTerms.add(w.src);
+        if(w.tgt.startsWith(id)) usedTerms.add(w.tgt);
+      });
+      
+      if(['GEN', 'LOAD'].includes(c.type)) {
+        let t = `${id}_T1`;
+        return usedTerms.has(t) ? null : t;
+      } else {
+        let t1 = `${id}_T1`, t2 = `${id}_T2`;
+        if(!usedTerms.has(t1)) return t1;
+        if(!usedTerms.has(t2)) return t2;
+        return null; 
+      }
+    }
+
     function solvePowerFlow() {
-      // 1. Identify Connected Components and Bus Active Injection
-      const nBuses = network.buses.length;
-      if (nBuses === 0) return;
+      let totalGen = 0, totalLoad = 0;
+      
+      // 1. Union-Find for electrical nodes
+      let parent = {};
+      const find = (i) => { if(parent[i] === i) return i; return parent[i] = find(parent[i]); };
+      const union = (i, j) => { 
+        if(!parent[i]) parent[i] = i; 
+        if(!parent[j]) parent[j] = j; 
+        parent[find(i)] = find(j); 
+      };
 
-      const busMap = {};
-      network.buses.forEach((b, idx) => {
-        busMap[b.id] = idx;
-        b.pGen = 0;
-        b.pLoad = 0;
-        b.pNet = 0;
-        b.theta = 0; // Voltage Angle in Radians
-        b.energized = false;
+      state.buses.forEach(b => parent[b.id] = b.id);
+      state.components.forEach(c => {
+        parent[`${c.id}_T1`] = `${c.id}_T1`;
+        if(['LINE', 'XFMR', 'BREAKER'].includes(c.type)) parent[`${c.id}_T2`] = `${c.id}_T2`;
+      });
+      state.wires.forEach(w => union(w.src, w.tgt));
+
+      // 2. Build Admittance Nodes
+      let nodeMap = {}; 
+      Object.keys(parent).forEach(term => {
+        let root = find(term);
+        if(!nodeMap[root]) nodeMap[root] = { id: root, pNet: 0, theta: 0, energized: false, isSlack: false, terms: [] };
+        nodeMap[root].terms.push(term);
       });
 
-      // Sum Generations
-      network.generators.forEach(g => {
-        if (busMap[g.busId] !== undefined) {
-          network.buses[busMap[g.busId]].pGen += parseFloat(g.pMW || 0);
+      let branches = [];
+      state.components.forEach(c => {
+        let r1 = find(`${c.id}_T1`);
+        if(c.type === 'GEN') {
+          nodeMap[r1].pNet += Number(c.pMW);
+          nodeMap[r1].energized = true; 
+          nodeMap[r1].isSlack = true; 
+          totalGen += Number(c.pMW);
+        }
+        else if(c.type === 'LOAD') {
+          nodeMap[r1].pNet -= Number(c.pMW);
+          totalLoad += Number(c.pMW);
+        }
+        else if(['LINE', 'XFMR', 'BREAKER'].includes(c.type)) {
+          let r2 = find(`${c.id}_T2`);
+          if(c.type === 'BREAKER' && c.status === 'OPEN') return; // Open breaker stops flow
+          let x = (c.type === 'BREAKER') ? 0.0001 : Math.max(Number(c.xpu)||0.01, 0.0001);
+          branches.push({ cId: c.id, r1, r2, x });
         }
       });
 
-      // Sum Loads
-      network.loads.forEach(l => {
-        if (busMap[l.busId] !== undefined) {
-          network.buses[busMap[l.busId]].pLoad += parseFloat(l.pMW || 0);
-        }
-      });
+      $('lblGen').textContent = totalGen.toFixed(1) + ' MW';
+      $('lblLoad').textContent = totalLoad.toFixed(1) + ' MW';
+      $('lblLoss').textContent = Math.max(0, (totalGen - totalLoad)).toFixed(1) + ' MW';
 
-      // Compute Net Active Power Injection at each bus
-      network.buses.forEach(b => {
-        b.pNet = b.pGen - b.pLoad;
-      });
-
-      // Collect Active Network Branches (Lines & Transformers) that are NOT isolated by OPEN Breakers
-      const branches = [];
-
-      network.lines.forEach(line => {
-        const cb = network.breakers.find(b => b.elementId === line.id);
-        const isOpen = cb && cb.status === 'OPEN';
-        line.isOpen = isOpen;
-        if (!isOpen && busMap[line.fromBus] !== undefined && busMap[line.toBus] !== undefined) {
-          branches.push({
-            id: line.id,
-            type: 'LINE',
-            from: busMap[line.fromBus],
-            to: busMap[line.toBus],
-            x: parseFloat(line.xPu) || 0.05,
-            maxMW: parseFloat(line.maxMW) || 100,
-            ref: line
-          });
-        } else {
-          line.pFlow = 0;
-          line.loadingPct = 0;
-        }
-      });
-
-      network.transformers.forEach(tr => {
-        const cb = network.breakers.find(b => b.elementId === tr.id);
-        const isOpen = cb && cb.status === 'OPEN';
-        tr.isOpen = isOpen;
-        if (!isOpen && busMap[tr.fromBus] !== undefined && busMap[tr.toBus] !== undefined) {
-          branches.push({
-            id: tr.id,
-            type: 'TRANSFORMER',
-            from: busMap[tr.fromBus],
-            to: busMap[tr.toBus],
-            x: parseFloat(tr.xPu) || 0.03,
-            maxMW: parseFloat(tr.mva) || 100,
-            ref: tr
-          });
-        } else {
-          tr.pFlow = 0;
-          tr.loadingPct = 0;
-        }
-      });
-
-      // Mark Energized Buses via Graph Traversal starting from Slack Bus (Bus 0 or Bus with active Gen)
-      const adj = Array.from({ length: nBuses }, () => []);
-      branches.forEach(br => {
-        adj[br.from].push(br.to);
-        adj[br.to].push(br.from);
-      });
-
-      const queue = [0]; // Slack bus
-      if (nBuses > 0) network.buses[0].energized = true;
-
-      while (queue.length > 0) {
-        const curr = queue.shift();
-        adj[curr].forEach(neighbor => {
-          if (!network.buses[neighbor].energized) {
-            network.buses[neighbor].energized = true;
-            queue.push(neighbor);
-          }
+      // 3. BFS Energization Tracker
+      let q = Object.values(nodeMap).filter(n => n.energized);
+      while(q.length > 0) {
+        let curr = q.shift();
+        branches.forEach(br => {
+          if(br.r1 === curr.id && !nodeMap[br.r2].energized) { nodeMap[br.r2].energized = true; q.push(nodeMap[br.r2]); }
+          if(br.r2 === curr.id && !nodeMap[br.r1].energized) { nodeMap[br.r1].energized = true; q.push(nodeMap[br.r1]); }
         });
       }
 
-      // Linear DC Power Flow Formulation: [B] * [Theta] = [P_net]
-      // Approximated Angle Solver using Gauss-Seidel Method for robust live canvas updating
-      const B = Array.from({ length: nBuses }, () => Array(nBuses).fill(0));
+      // 4. Gauss-Seidel Solver
+      let activeNodes = Object.values(nodeMap).filter(n => n.energized);
+      if(activeNodes.length > 0) {
+        let slacks = activeNodes.filter(n => n.isSlack);
+        slacks.forEach(s => s.theta = 0);
+        if(slacks.length === 0) activeNodes[0].theta = 0; // Fallback
 
-      branches.forEach(br => {
-        const b_ij = 1.0 / (br.x || 0.01);
-        B[br.from][br.from] += b_ij;
-        B[br.to][br.to] += b_ij;
-        B[br.from][br.to] -= b_ij;
-        B[br.to][br.from] -= b_ij;
-      });
-
-      // Solve for angles (Bus 0 is reference angle theta_0 = 0)
-      for (let iter = 0; iter < 40; iter++) {
-        for (let i = 1; i < nBuses; i++) {
-          if (!network.buses[i].energized) continue;
-          let sumBTheta = 0;
-          let sumB = 0;
-          for (let j = 0; j < nBuses; j++) {
-            if (i !== j) {
-              const b_ij = B[i][j];
-              sumBTheta -= b_ij * network.buses[j].theta;
-              sumB -= b_ij;
+        for(let iter = 0; iter < 100; iter++) {
+          activeNodes.forEach(node => {
+            if(node.isSlack) return; 
+            let sumInvX = 0, sumThetaInvX = 0;
+            branches.forEach(br => {
+              if(br.r1 === node.id || br.r2 === node.id) {
+                let neighbor = nodeMap[br.r1 === node.id ? br.r2 : br.r1];
+                if(neighbor && neighbor.energized) {
+                  let invX = 1.0 / br.x;
+                  sumInvX += invX;
+                  sumThetaInvX += neighbor.theta * invX;
+                }
+              }
+            });
+            if(sumInvX > 0) {
+              node.theta = ( (node.pNet / 100.0) + sumThetaInvX ) / sumInvX;
             }
-          }
-          if (sumB > 0) {
-            network.buses[i].theta = (network.buses[i].pNet / 100.0 + sumBTheta) / sumB;
-          }
+          });
         }
       }
 
-      // Compute Branch Power Flow P_ij = (theta_i - theta_j) / X_ij
+      // 5. Compute Flow and Map Energization to view state
+      state.components.forEach(c => { c.pFlow = 0; c.energized = false; });
+      state.buses.forEach(b => b.energized = nodeMap[find(b.id)]?.energized || false);
+
       branches.forEach(br => {
-        const thetaI = network.buses[br.from].theta;
-        const thetaJ = network.buses[br.to].theta;
-        const flowMW = ((thetaI - thetaJ) / br.x) * 100.0; // Scaled to MW
-
-        br.ref.pFlow = Math.abs(flowMW);
-        br.ref.flowDir = flowMW >= 0 ? 1 : -1; // 1: From -> To, -1: To -> From
-        br.ref.loadingPct = Math.min(999, Math.round((Math.abs(flowMW) / br.maxMW) * 100));
-
-        if (br.ref.loadingPct > 100) {
-          logEvent(`OVERLOAD DETECTED: ${br.ref.name || br.ref.id} flow (${br.ref.pFlow.toFixed(1)} MW) exceeds capacity (${br.maxMW} MW)`, 'WARN');
+        let flowPu = (nodeMap[br.r1].theta - nodeMap[br.r2].theta) / br.x;
+        let comp = getComp(br.cId);
+        if(comp) {
+          comp.pFlow = flowPu * 100.0;
+          comp.energized = true;
+          comp.flowingT1toT2 = flowPu > 0;
         }
       });
-
-      updateSummaryStats();
+      
+      state.components.forEach(c => {
+         if(['GEN', 'LOAD'].includes(c.type)) {
+            c.energized = nodeMap[find(`${c.id}_T1`)]?.energized || false;
+         }
+      });
     }
 
-    function updateSummaryStats() {
-      const totalGen = network.generators.reduce((sum, g) => sum + parseFloat(g.pMW || 0), 0);
-      const totalLoad = network.loads.reduce((sum, l) => sum + parseFloat(l.pMW || 0), 0);
-      const activeLines = network.lines.filter(l => !l.isOpen).length + network.transformers.filter(t => !t.isOpen).length;
-
-      document.getElementById('summaryTotalGen').textContent = `${totalGen.toFixed(1)} MW`;
-      document.getElementById('summaryTotalLoad').textContent = `${totalLoad.toFixed(1)} MW`;
-      document.getElementById('summaryActiveLines').textContent = activeLines;
-    }
-
-    // --- RENDER FUNCTION ---
-    function renderCanvas() {
+    function render() {
       solvePowerFlow();
 
-      const linesG = document.getElementById('linesLayer');
-      const trsG = document.getElementById('transformersLayer');
-      const breakersG = document.getElementById('breakersLayer');
-      const busesG = document.getElementById('busesLayer');
-      const gensG = document.getElementById('generatorsLayer');
-      const loadsG = document.getElementById('loadsLayer');
+      const layers = {
+        wires: $('layer-wires'),
+        flow: $('layer-flow'),
+        comps: $('layer-components'),
+        buses: $('layer-buses'),
+        labels: $('layer-live-labels')
+      };
+      for(let k in layers) layers[k].innerHTML = '';
 
-      linesG.innerHTML = '';
-      trsG.innerHTML = '';
-      breakersG.innerHTML = '';
-      busesG.innerHTML = '';
-      gensG.innerHTML = '';
-      loadsG.innerHTML = '';
+      // Draw Wires & Flow
+      state.wires.forEach(w => {
+        let coords = resolveWireCoordinates(w.src, w.tgt);
+        layers.wires.appendChild(createSVG('line', {
+          x1: coords.x1, y1: coords.y1, x2: coords.x2, y2: coords.y2, 
+          stroke: '#64748b', 'stroke-width': 2.5
+        }));
+      });
 
-      const busMap = {};
-      network.buses.forEach(b => busMap[b.id] = b);
+      // Draw Buses
+      state.buses.forEach(b => {
+        const isSel = (selectedType === 'BUS' && selectedId === b.id);
+        const w = b.rot === 'H' ? b.len : 12;
+        const h = b.rot === 'H' ? 12 : b.len;
+        const color = b.energized ? (V_COLORS[b.kv] || '#888') : '#475569';
+        
+        let g = createSVG('g', { class: 'cursor-move hover:brightness-110 transition-all' });
+        g.onmousedown = (e) => startDrag(e, 'BUS', b.id);
+        g.onclick = (e) => selectElement(e, 'BUS', b.id);
+        g.onmouseenter = (e) => showHoverTooltip(e, 'BUS', b.id);
+        g.onmouseleave = hideHoverTooltip;
 
-      // 1. Render Transmission Lines
-      network.lines.forEach(line => {
-        const b1 = busMap[line.fromBus];
-        const b2 = busMap[line.toBus];
-        if (!b1 || !b2) return;
+        g.appendChild(createSVG('rect', {
+          x: b.x - w/2, y: b.y - h/2, width: w, height: h, rx: 3,
+          fill: color, stroke: isSel ? '#ffffff' : 'none', 'stroke-width': 3
+        }));
 
-        const isOverloaded = line.loadingPct > 100;
-        const color = line.isOpen ? '#475569' : (isOverloaded ? '#EF4444' : '#38BDF8');
+        // Name Tag
+        if(b.len > 20) { // Don't show name for small T-tap junction buses
+          let txt = createSVG('text', {
+            x: b.x, y: b.y - h/2 - 8, fill: '#e2e8f0', 'font-size': 12, 'text-anchor': 'middle', class: 'pointer-events-none font-bold'
+          });
+          txt.textContent = b.name;
+          layers.labels.appendChild(txt);
+        }
+        layers.buses.appendChild(g);
+      });
 
-        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.setAttribute('class', 'cursor-pointer');
-        g.onclick = (e) => { e.stopPropagation(); selectElement('LINE', line); };
+      // Draw Components
+      state.components.forEach(c => {
+        const isSel = (selectedType === 'COMP' && selectedId === c.id);
+        let gMain = createSVG('g', { transform: `translate(${c.x}, ${c.y})`, class: 'cursor-pointer hover:drop-shadow-lg transition-all' });
+        
+        let gRot = createSVG('g', { transform: c.rot === 'V' ? 'rotate(90)' : 'rotate(0)' });
+        gMain.appendChild(gRot);
 
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        path.setAttribute('x1', b1.x + 40); path.setAttribute('y1', b1.y + 4);
-        path.setAttribute('x2', b2.x + 40); path.setAttribute('y2', b2.y + 4);
-        path.setAttribute('stroke', color);
-        path.setAttribute('stroke-width', isOverloaded ? '4' : '2.5');
-        if (isOverloaded) path.setAttribute('class', 'animate-pulse');
+        gMain.onmousedown = (e) => startDrag(e, 'COMP', c.id);
+        gMain.onclick = (e) => selectElement(e, 'COMP', c.id);
+        gMain.onmouseenter = (e) => showHoverTooltip(e, 'COMP', c.id);
+        gMain.onmouseleave = hideHoverTooltip;
 
-        g.appendChild(path);
-
-        // Animated Power Flow Particles
-        if (!line.isOpen && line.pFlow > 0.1) {
-          const flowPath = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-          flowPath.setAttribute('x1', b1.x + 40); flowPath.setAttribute('y1', b1.y + 4);
-          flowPath.setAttribute('x2', b2.x + 40); flowPath.setAttribute('y2', b2.y + 4);
-          flowPath.setAttribute('stroke', '#FFFFFF');
-          flowPath.setAttribute('stroke-width', '2');
-          flowPath.setAttribute('class', `flow-line ${line.flowDir < 0 ? 'flow-reverse' : ''}`);
-          g.appendChild(flowPath);
+        if(isSel) {
+          gRot.appendChild(createSVG('rect', { x: -35, y: -25, width: 70, height: 50, rx: 6, fill: 'none', stroke: '#818cf8', 'stroke-width': 2, 'stroke-dasharray': '4 4' }));
         }
 
-        // Flow MW Label
-        const midX = (b1.x + b2.x) / 2 + 40;
-        const midY = (b1.y + b2.y) / 2;
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', midX); text.setAttribute('y', midY - 8);
-        text.setAttribute('fill', isOverloaded ? '#EF4444' : '#94A3B8');
-        text.setAttribute('font-size', '10');
-        text.setAttribute('font-mono', 'true');
-        text.setAttribute('text-anchor', 'middle');
-        text.textContent = `${(line.pFlow || 0).toFixed(1)} MW (${line.loadingPct || 0}%)`;
-
-        g.appendChild(text);
-        linesG.appendChild(g);
-      });
-
-      // 2. Render Transformers
-      network.transformers.forEach(tr => {
-        const b1 = busMap[tr.fromBus];
-        const b2 = busMap[tr.toBus];
-        if (!b1 || !b2) return;
-
-        const isOverloaded = tr.loadingPct > 100;
-        const color = tr.isOpen ? '#475569' : (isOverloaded ? '#EF4444' : '#06B6D4');
-        const midX = (b1.x + b2.x) / 2 + 40;
-        const midY = (b1.y + b2.y) / 2 + 4;
-
-        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.setAttribute('class', 'cursor-pointer');
-        g.onclick = (e) => { e.stopPropagation(); selectElement('TRANSFORMER', tr); };
-
-        const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line1.setAttribute('x1', b1.x + 40); line1.setAttribute('y1', b1.y + 4);
-        line1.setAttribute('x2', midX); line1.setAttribute('y2', midY);
-        line1.setAttribute('stroke', color); line1.setAttribute('stroke-width', '2');
-
-        const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line2.setAttribute('x1', midX); line2.setAttribute('y1', midY);
-        line2.setAttribute('x2', b2.x + 40); line2.setAttribute('y2', b2.y + 4);
-        line2.setAttribute('stroke', color); line2.setAttribute('stroke-width', '2');
-
-        // Dual interlocking circles
-        const c1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        c1.setAttribute('cx', midX - 6); c1.setAttribute('cy', midY); c1.setAttribute('r', '8');
-        c1.setAttribute('fill', '#0F172A'); c1.setAttribute('stroke', color); c1.setAttribute('stroke-width', '2');
-
-        const c2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        c2.setAttribute('cx', midX + 6); c2.setAttribute('cy', midY); c2.setAttribute('r', '8');
-        c2.setAttribute('fill', '#0F172A'); c2.setAttribute('stroke', color); c2.setAttribute('stroke-width', '2');
-
-        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        label.setAttribute('x', midX); label.setAttribute('y', midY + 20);
-        label.setAttribute('fill', '#94A3B8'); label.setAttribute('font-size', '9');
-        label.setAttribute('font-mono', 'true'); label.setAttribute('text-anchor', 'middle');
-        label.textContent = `${(tr.pFlow || 0).toFixed(1)} MW (${tr.loadingPct || 0}%)`;
-
-        g.appendChild(line1); g.appendChild(line2);
-        g.appendChild(c1); g.appendChild(c2); g.appendChild(label);
-        trsG.appendChild(g);
-      });
-
-      // 3. Render Circuit Breakers
-      network.breakers.forEach(cb => {
-        const isClosed = cb.status === 'CLOSED';
-        const targetLine = network.lines.find(l => l.id === cb.elementId) || network.transformers.find(t => t.id === cb.elementId);
-        if (!targetLine) return;
-
-        const b1 = busMap[targetLine.fromBus];
-        const b2 = busMap[targetLine.toBus];
-        if (!b1 || !b2) return;
-
-        const cbX = (b1.x * 0.7 + b2.x * 0.3) + 40;
-        const cbY = (b1.y * 0.7 + b2.y * 0.3) + 4;
-
-        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.setAttribute('transform', `translate(${cbX}, ${cbY})`);
-        g.setAttribute('class', 'cursor-pointer');
-        g.onclick = (e) => { e.stopPropagation(); toggleBreaker(cb.id); selectElement('BREAKER', cb); };
-
-        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        rect.setAttribute('x', '-10'); rect.setAttribute('y', '-10');
-        rect.setAttribute('width', '20'); rect.setAttribute('height', '20');
-        rect.setAttribute('rx', '4');
-        rect.setAttribute('fill', isClosed ? '#064E3B' : '#7F1D1D');
-        rect.setAttribute('stroke', isClosed ? '#10B981' : '#EF4444');
-        rect.setAttribute('stroke-width', '2');
-
-        const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        txt.setAttribute('text-anchor', 'middle'); txt.setAttribute('y', '3.5');
-        txt.setAttribute('fill', '#FFFFFF'); txt.setAttribute('font-size', '8');
-        txt.setAttribute('font-weight', 'bold');
-        txt.textContent = isClosed ? 'CB' : 'X';
-
-        g.appendChild(rect); g.appendChild(txt);
-        breakersG.appendChild(g);
-      });
-
-      // 4. Render Buses
-      network.buses.forEach(bus => {
-        const color = bus.energized ? getVoltageColor(bus.kv) : '#475569';
-        const isSelected = selectedElement && selectedElement.data.id === bus.id;
-
-        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.setAttribute('class', 'cursor-move');
-        g.onmousedown = (e) => startDragNode(e, 'BUS', bus);
-        g.onclick = (e) => { e.stopPropagation(); handleNodeClick('BUS', bus); };
-
-        const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        bar.setAttribute('x', bus.x); bar.setAttribute('y', bus.y);
-        bar.setAttribute('width', '80'); bar.setAttribute('height', '8');
-        bar.setAttribute('rx', '4');
-        bar.setAttribute('fill', color);
-        if (isSelected) {
-          bar.setAttribute('stroke', '#FFFFFF');
-          bar.setAttribute('stroke-width', '2');
+        // Base Shapes (Drawn Horizontally inside gRot)
+        if (c.type === 'GEN') {
+          gRot.appendChild(createSVG('circle', { cx: 0, cy: 0, r: 16, fill: '#064e3b', stroke: c.energized?'#34d399':'#64748b', 'stroke-width': 2 }));
+          let t = createSVG('text', { x: 0, y: 5, fill: c.energized?'#34d399':'#64748b', 'font-size': 14, 'text-anchor': 'middle', 'font-weight': 'bold' });
+          t.textContent = 'G'; gRot.appendChild(t);
+        }
+        else if (c.type === 'LOAD') {
+          gRot.appendChild(createSVG('polygon', { points: "-14,-14 14,-14 0,14", fill: '#78350f', stroke: c.energized?'#fbbf24':'#64748b', 'stroke-width': 2 }));
+        }
+        else if (c.type === 'LINE') {
+          gRot.appendChild(createSVG('rect', { x: -16, y: -8, width: 32, height: 16, rx: 2, fill: '#1e3a8a', stroke: '#60a5fa', 'stroke-width': 2 }));
+          gRot.appendChild(createSVG('line', { x1: -16, y1: 0, x2: 16, y2: 0, stroke: '#93c5fd', 'stroke-width': 2 }));
+        }
+        else if (c.type === 'XFMR') {
+          gRot.appendChild(createSVG('circle', { cx: -7, cy: 0, r: 11, fill: '#1e293b', stroke: '#fb923c', 'stroke-width': 2 }));
+          gRot.appendChild(createSVG('circle', { cx: 7, cy: 0, r: 11, fill: 'none', stroke: '#fb923c', 'stroke-width': 2 }));
+        }
+        else if (c.type === 'BREAKER') {
+          let isOpen = c.status === 'OPEN';
+          gRot.appendChild(createSVG('rect', { x: -12, y: -12, width: 24, height: 24, rx: 2, 
+            fill: isOpen ? '#7f1d1d' : '#14532d', 
+            stroke: isOpen ? '#f87171' : '#4ade80', 'stroke-width': 2 
+          }));
+          let t = createSVG('text', { x: 0, y: 4, fill: '#fff', 'font-size': 12, 'text-anchor': 'middle', 'font-weight': 'bold', transform: c.rot==='V'?'rotate(-90)':'rotate(0)' });
+          t.textContent = isOpen ? 'O' : 'C'; gRot.appendChild(t);
         }
 
-        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        label.setAttribute('x', bus.x + 40); label.setAttribute('y', bus.y - 8);
-        label.setAttribute('fill', '#F8FAFC'); label.setAttribute('font-size', '11');
-        label.setAttribute('font-weight', 'bold'); label.setAttribute('text-anchor', 'middle');
-        label.textContent = bus.name;
+        // Terminals
+        const drawTerm = (x, y) => gRot.appendChild(createSVG('circle', { cx: x, cy: y, r: 3.5, fill: '#94a3b8' }));
+        if(['GEN', 'LOAD'].includes(c.type)) drawTerm(0, -18);
+        else { drawTerm(-24, 0); drawTerm(24, 0); }
 
-        const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        sub.setAttribute('x', bus.x + 40); sub.setAttribute('y', bus.y + 20);
-        sub.setAttribute('fill', '#94A3B8'); sub.setAttribute('font-size', '9');
-        sub.setAttribute('font-mono', 'true'); sub.setAttribute('text-anchor', 'middle');
-        sub.textContent = `${bus.kv}kV | Net: ${bus.pNet.toFixed(1)}MW`;
+        // Persistent Text Labels (Not rotated)
+        let lName = createSVG('text', { x: 0, y: c.rot==='V'? 40 : 32, fill: '#cbd5e1', 'font-size': 11, 'text-anchor': 'middle', class: 'font-mono pointer-events-none drop-shadow-md' });
+        lName.textContent = c.name; 
+        gMain.appendChild(lName);
 
-        g.appendChild(bar); g.appendChild(label); g.appendChild(sub);
-        busesG.appendChild(g);
-      });
+        // Live Value Monitoring
+        if(c.energized) {
+          let lVal = createSVG('text', { x: 0, y: c.rot==='V'? -32 : -22, fill: '#fff', 'font-size': 12, 'font-weight': 'bold', 'text-anchor': 'middle', class: 'pointer-events-none' });
+          lVal.setAttribute('paint-order', 'stroke');
+          lVal.setAttribute('stroke', '#020617');
+          lVal.setAttribute('stroke-width', '4px');
 
-      // 5. Render Generators
-      network.generators.forEach(gen => {
-        const bus = busMap[gen.busId];
-        if (!bus) return;
+          if(c.type === 'GEN') { lVal.textContent = `+${c.pMW} MW`; lVal.setAttribute('fill', '#4ade80'); }
+          else if(c.type === 'LOAD') { lVal.textContent = `-${c.pMW} MW`; lVal.setAttribute('fill', '#fbbf24'); }
+          else if(['LINE', 'XFMR'].includes(c.type)) {
+            let absFlow = Math.abs(c.pFlow || 0);
+            let overloaded = absFlow > Number(c.limit);
+            lVal.textContent = `${absFlow.toFixed(1)} MW`;
+            lVal.setAttribute('fill', overloaded ? '#f87171' : '#38bdf8');
+            
+            if(overloaded) {
+              gRot.appendChild(createSVG('rect', { x: -20, y: -16, width: 40, height: 32, rx:4, fill: 'none', stroke: '#ef4444', 'stroke-width': 3, class: 'overload' }));
+            }
+            if(absFlow > 0.1) {
+              let speed = Math.max(0.2, 1.5 - (absFlow / 500)); 
+              let flowLine = createSVG('line', {
+                 x1: c.flowingT1toT2 ? -15 : 15, y1: 0, 
+                 x2: c.flowingT1toT2 ? 15 : -15, y2: 0,
+                 stroke: '#ffffff', 'stroke-width': 2.5, class: 'flow-line pointer-events-none drop-shadow-[0_0_3px_#fff]'
+              });
+              flowLine.style.animationDuration = `${speed}s`;
+              gRot.appendChild(flowLine);
+            }
+          }
+          gMain.appendChild(lVal);
+        }
 
-        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.setAttribute('class', 'cursor-pointer');
-        g.onclick = (e) => { e.stopPropagation(); selectElement('GENERATOR', gen); };
-
-        const gx = bus.x + 40;
-        const gy = bus.y - 35;
-
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', gx); line.setAttribute('y1', gy + 12);
-        line.setAttribute('x2', gx); line.setAttribute('y2', bus.y);
-        line.setAttribute('stroke', '#10B981'); line.setAttribute('stroke-width', '2');
-
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', gx); circle.setAttribute('cy', gy); circle.setAttribute('r', '12');
-        circle.setAttribute('fill', '#064E3B'); circle.setAttribute('stroke', '#10B981'); circle.setAttribute('stroke-width', '2');
-
-        const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        txt.setAttribute('x', gx); txt.setAttribute('y', gy + 4);
-        txt.setAttribute('text-anchor', 'middle'); txt.setAttribute('fill', '#10B981');
-        txt.setAttribute('font-size', '10'); txt.setAttribute('font-weight', 'bold');
-        txt.textContent = 'G';
-
-        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        label.setAttribute('x', gx); label.setAttribute('y', gy - 16);
-        label.setAttribute('text-anchor', 'middle'); label.setAttribute('fill', '#10B981');
-        label.setAttribute('font-size', '9'); label.setAttribute('font-mono', 'true');
-        label.textContent = `${gen.pMW}MW`;
-
-        g.appendChild(line); g.appendChild(circle); g.appendChild(txt); g.appendChild(label);
-        gensG.appendChild(g);
-      });
-
-      // 6. Render Loads
-      network.loads.forEach(load => {
-        const bus = busMap[load.busId];
-        if (!bus) return;
-
-        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.setAttribute('class', 'cursor-pointer');
-        g.onclick = (e) => { e.stopPropagation(); selectElement('LOAD', load); };
-
-        const lx = bus.x + 40;
-        const ly = bus.y + 35;
-
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', lx); line.setAttribute('y1', bus.y + 8);
-        line.setAttribute('x2', lx); line.setAttribute('y2', ly - 10);
-        line.setAttribute('stroke', '#F59E0B'); line.setAttribute('stroke-width', '2');
-
-        const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-        poly.setAttribute('points', `${lx-10},${ly-10} ${lx+10},${ly-10} ${lx},${ly+8}`);
-        poly.setAttribute('fill', '#78350F'); poly.setAttribute('stroke', '#F59E0B'); poly.setAttribute('stroke-width', '2');
-
-        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        label.setAttribute('x', lx); label.setAttribute('y', ly + 20);
-        label.setAttribute('text-anchor', 'middle'); label.setAttribute('fill', '#F59E0B');
-        label.setAttribute('font-size', '9'); label.setAttribute('font-mono', 'true');
-        label.textContent = `${load.pMW}MW`;
-
-        g.appendChild(line); g.appendChild(poly); g.appendChild(label);
-        loadsG.appendChild(g);
+        layers.comps.appendChild(gMain);
       });
     }
 
-    // --- INTERACTION & INSPECTOR HANDLERS ---
-    function selectElement(type, data) {
-      selectedElement = { type, data };
-      const emptyState = document.getElementById('emptyInspectState');
-      const form = document.getElementById('inspectForm');
-      const badge = document.getElementById('inspectTypeBadge');
+    const container = $('viewportContainer');
+    
+    function setMode(newMode) {
+      mode = newMode;
+      wireSourceTerm = null;
+      snapTarget = null;
+      $('snapIndicator').classList.add('hidden');
+      $('btnSelect').className = `px-3 py-1.5 rounded font-medium transition flex items-center gap-1 ${mode==='SELECT' ? 'bg-indigo-600 text-white shadow-lg' : 'border border-slate-600 hover:bg-slate-700 text-slate-300'}`;
+      $('btnWire').className = `px-3 py-1.5 rounded font-medium transition relative flex items-center gap-1 ${mode==='WIRE' ? 'bg-indigo-600 text-white shadow-lg' : 'border border-slate-600 hover:bg-slate-700 text-slate-300'}`;
+      $('wireBadge').style.display = mode==='WIRE' ? 'block' : 'none';
+      $('activeWire').classList.add('hidden');
+    }
 
-      emptyState.classList.add('hidden');
-      form.classList.remove('hidden');
-      badge.textContent = type;
+    function spawnComponent(type) {
+      let x = -vp.x / vp.scale + 250;
+      let y = -vp.y / vp.scale + 250;
+      
+      if(type === 'BUS') {
+        state.buses.push({ id: genId('B'), name: `Bus ${state.buses.length+1}`, x, y, len: 150, rot: 'H', kv: '230' });
+      } else {
+        let comp = { id: genId('C'), type, name: `${type} ${state.components.length+1}`, x, y, rot: 'H' };
+        if(type === 'GEN') { comp.pMW = 100; comp.maxMW = 200; }
+        if(type === 'LOAD') { comp.pMW = 50; }
+        if(['LINE', 'XFMR', 'BREAKER'].includes(type)) { 
+          comp.xpu = type === 'XFMR' ? 0.05 : 0.1;
+          comp.limit = 500; 
+        }
+        if(type === 'BREAKER') comp.status = 'CLOSED';
+        state.components.push(comp);
+      }
+      setMode('SELECT');
+      render();
+    }
 
-      let fieldsHtml = `
-        <div>
-          <label class="text-[11px] text-slate-400 font-semibold">Element Identifier</label>
-          <input type="text" value="${data.name || data.id}" onchange="updateAttr('name', this.value)" 
-            class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1 focus:outline-none focus:border-blue-500">
+    function selectElement(e, type, id) {
+      e.stopPropagation();
+      if(mode === 'WIRE') {
+        handleWiring(type, id, e.clientX, e.clientY);
+        return;
+      }
+      selectedType = type;
+      selectedId = id;
+      buildInspector();
+      render();
+    }
+
+    // Wiring Logic including T-Tapping functionality
+    function handleWiring(type, id, cx, cy) {
+      if(!wireSourceTerm) {
+        if(snapTarget && snapTarget.type === 'term') {
+           wireSourceTerm = snapTarget.id;
+        } else {
+           let term = getAvailableTerminal(type, id);
+           if(!term) { showToast("No available connection ports.", "error"); return; }
+           wireSourceTerm = term;
+        }
+      } else {
+        let tgt = null;
+        if(snapTarget) {
+          if(snapTarget.type === 'term') {
+             tgt = snapTarget.id;
+          } else if (snapTarget.type === 'wire') {
+             // T-Tap! Create Junction Bus
+             let jId = genId('J');
+             state.buses.push({ id: jId, name: `TAP`, x: snapTarget.x, y: snapTarget.y, len: 14, rot: 'H', kv: '230' }); // Small square bus
+             
+             // Split existing wire
+             let oldWire = snapTarget.wireObj;
+             state.wires = state.wires.filter(w => w.id !== oldWire.id);
+             state.wires.push({ id: genId('W'), src: oldWire.src, tgt: jId });
+             state.wires.push({ id: genId('W'), src: jId, tgt: oldWire.tgt });
+             
+             tgt = jId; // Connect our new wire to this junction
+             showToast("Line Tapped!");
+          }
+        } else {
+           let term = getAvailableTerminal(type, id);
+           tgt = term;
+        }
+
+        if(tgt) {
+          if(wireSourceTerm === tgt) { wireSourceTerm = null; $('activeWire').classList.add('hidden'); return; }
+          state.wires.push({ id: genId('W'), src: wireSourceTerm, tgt: tgt });
+          wireSourceTerm = null;
+          $('activeWire').classList.add('hidden');
+          setMode('SELECT');
+          render();
+        }
+      }
+    }
+
+    container.addEventListener('mousedown', e => {
+      if(e.target.tagName === 'svg' || e.target.id === 'viewportContainer') {
+        if(mode === 'SELECT') {
+          vp.isDragging = true;
+          vp.startX = e.clientX - vp.x;
+          vp.startY = e.clientY - vp.y;
+          selectedId = null; selectedType = null;
+          buildInspector();
+          render();
+        } else if (mode === 'WIRE' && snapTarget && snapTarget.type === 'wire' && wireSourceTerm) {
+          // Finish wire on empty space if it snapped to a wire
+          handleWiring(null, null, e.clientX, e.clientY);
+        } else if (mode === 'WIRE' && wireSourceTerm) {
+           // Cancel wire
+           wireSourceTerm = null;
+           $('activeWire').classList.add('hidden');
+        }
+      }
+    });
+
+    function startDrag(e, type, id) {
+      if(mode !== 'SELECT') return;
+      e.stopPropagation();
+      let el = type === 'BUS' ? getBus(id) : getComp(id);
+      let rect = container.getBoundingClientRect();
+      let mx = (e.clientX - rect.left - vp.x) / vp.scale;
+      let my = (e.clientY - rect.top - vp.y) / vp.scale;
+      dragElement = { obj: el, offsetX: el.x - mx, offsetY: el.y - my };
+      selectElement(e, type, id);
+    }
+
+    window.addEventListener('mousemove', e => {
+      let rect = container.getBoundingClientRect();
+      let mx = (e.clientX - rect.left - vp.x) / vp.scale;
+      let my = (e.clientY - rect.top - vp.y) / vp.scale;
+
+      if(vp.isDragging) {
+        vp.x = e.clientX - vp.startX;
+        vp.y = e.clientY - vp.startY;
+        $('transformGroup').setAttribute('transform', `translate(${vp.x}, ${vp.y}) scale(${vp.scale})`);
+      } else if (dragElement) {
+        dragElement.obj.x = mx + dragElement.offsetX;
+        dragElement.obj.y = my + dragElement.offsetY;
+        render();
+      }
+
+      // Wire Tool Logic & Snapping
+      if(mode === 'WIRE') {
+        snapTarget = findSnapTarget(mx, my);
+        let ind = $('snapIndicator');
+        
+        if(snapTarget) {
+          ind.setAttribute('cx', snapTarget.x);
+          ind.setAttribute('cy', snapTarget.y);
+          ind.setAttribute('stroke', snapTarget.type === 'wire' ? '#f59e0b' : '#22c55e'); // Amber for wire split, Green for terminal
+          ind.classList.remove('hidden');
+        } else {
+          ind.classList.add('hidden');
+        }
+
+        if(wireSourceTerm) {
+          let p1 = getRawTerminalPos(wireSourceTerm);
+          let aw = $('activeWire');
+          aw.setAttribute('x1', p1.isBus ? getBus(p1.busId).x : p1.x);
+          aw.setAttribute('y1', p1.isBus ? getBus(p1.busId).y : p1.y);
+          aw.setAttribute('x2', snapTarget ? snapTarget.x : mx);
+          aw.setAttribute('y2', snapTarget ? snapTarget.y : my);
+          aw.classList.remove('hidden');
+        }
+      }
+
+      // Tooltip following mouse slightly
+      if(currentHoverId) {
+         let tt = $('tooltip');
+         tt.style.left = (e.clientX + 15) + 'px';
+         tt.style.top = (e.clientY + 15) + 'px';
+      }
+    });
+
+    window.addEventListener('mouseup', () => { vp.isDragging = false; dragElement = null; });
+
+    container.addEventListener('wheel', e => {
+      e.preventDefault();
+      let oldScale = vp.scale;
+      vp.scale = Math.min(Math.max(0.1, vp.scale + (e.deltaY < 0 ? 0.05 : -0.05)), 4);
+      let rect = container.getBoundingClientRect();
+      let mx = e.clientX - rect.left;
+      let my = e.clientY - rect.top;
+      vp.x = mx - (mx - vp.x) * (vp.scale / oldScale);
+      vp.y = my - (my - vp.y) * (vp.scale / oldScale);
+      $('transformGroup').setAttribute('transform', `translate(${vp.x}, ${vp.y}) scale(${vp.scale})`);
+    });
+
+    // Hotkeys (R for rotate, V/W for modes, Delete/Backspace)
+    window.addEventListener('keydown', e => {
+      if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      if(e.key.toLowerCase() === 'r' && selectedId && selectedType === 'COMP') {
+         let c = getComp(selectedId);
+         if(['BREAKER', 'LINE', 'XFMR'].includes(c.type)) {
+            updateParam('rot', c.rot === 'H' ? 'V' : 'H');
+         }
+      } else if (e.key.toLowerCase() === 'r' && selectedId && selectedType === 'BUS') {
+         let b = getBus(selectedId);
+         updateParam('rot', b.rot === 'H' ? 'V' : 'H');
+      } else if (e.key.toLowerCase() === 'v') { setMode('SELECT'); }
+        else if (e.key.toLowerCase() === 'w') { setMode('WIRE'); }
+        else if (e.key === 'Delete' || e.key === 'Backspace') {
+          if(selectedId) deleteElement();
+        }
+    });
+
+    function showHoverTooltip(e, type, id) {
+      if(mode === 'WIRE' || vp.isDragging || dragElement) return;
+      currentHoverId = id;
+      const tt = $('tooltip');
+      let html = '';
+      if(type === 'BUS') {
+        let b = getBus(id);
+        html = `<strong>${b.name}</strong><br><span class="text-slate-400">Type: Busbar (${b.kv}kV)</span><br>Status: ${b.energized?'<span class="text-green-400">Energized</span>':'<span class="text-slate-500">Dead</span>'}`;
+      } else {
+        let c = getComp(id);
+        html = `<strong>${c.name}</strong><br><span class="text-slate-400">Type: ${c.type}</span><br>Status: ${c.energized?'<span class="text-green-400">Live</span>':'<span class="text-slate-500">Dead</span>'}`;
+        if(c.type === 'GEN') html += `<br>Gen: ${c.pMW} / ${c.maxMW} MW`;
+        if(c.type === 'LOAD') html += `<br>Demand: ${c.pMW} MW`;
+        if(['LINE', 'XFMR'].includes(c.type)) html += `<br>Flow: ${Math.abs(c.pFlow||0).toFixed(1)} MW<br>Limit: ${c.limit} MW<br>X: ${c.xpu} pu`;
+        if(c.type === 'BREAKER') html += `<br>State: <span class="${c.status==='OPEN'?'text-red-400':'text-green-400'}">${c.status}</span>`;
+      }
+      tt.innerHTML = html;
+      tt.style.left = (e.clientX + 15) + 'px';
+      tt.style.top = (e.clientY + 15) + 'px';
+      tt.classList.remove('hidden');
+    }
+
+    function hideHoverTooltip() {
+      currentHoverId = null;
+      $('tooltip').classList.add('hidden');
+    }
+
+    function updateParam(key, val) {
+      if(!selectedId) return;
+      let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
+      if(el) { el[key] = val; buildInspector(); render(); }
+    }
+
+    function buildInspector() {
+      const panel = $('inspectorPanel');
+      const insType = $('insType');
+      
+      if(!selectedId) {
+        insType.textContent = 'NONE';
+        insType.className = "text-slate-400 bg-slate-800 px-2 py-0.5 rounded";
+        panel.innerHTML = '<div class="text-center py-10 text-slate-500 text-sm">Select an element on the canvas to inspect and edit its parameters. <br><br>Tip: Press <b>R</b> to rotate elements. Press <b>Del</b> to delete.</div>';
+        return;
+      }
+
+      let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
+      insType.textContent = selectedType === 'BUS' ? 'BUSBAR' : el.type;
+      insType.className = "text-indigo-300 bg-indigo-900/40 px-2 py-0.5 rounded font-bold border border-indigo-500/30";
+
+      const fInput = (label, key, type="text") => `
+        <div class="mb-3">
+          <label class="block text-[11px] font-bold text-slate-400 mb-1 tracking-wider uppercase">${label}</label>
+          <input type="${type}" value="${el[key] || ''}" oninput="updateParam('${key}', this.type==='number'?Number(this.value):this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm focus:border-indigo-500 outline-none text-slate-200 transition">
         </div>
       `;
 
-      if (type === 'BUS') {
-        fieldsHtml += `
-          <div>
-            <label class="text-[11px] text-slate-400 font-semibold">Nominal Voltage (kV)</label>
-            <input type="number" value="${data.kv}" onchange="updateAttr('kv', parseFloat(this.value))" 
-              class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1">
-          </div>
-          <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-xs space-y-1 font-mono">
-            <div class="flex justify-between"><span>Calculated Angle:</span><span class="text-blue-400">${(data.theta || 0).toFixed(3)} rad</span></div>
-            <div class="flex justify-between"><span>Net MW Injection:</span><span class="text-emerald-400">${(data.pNet || 0).toFixed(1)} MW</span></div>
-          </div>
-        `;
-      } else if (type === 'GENERATOR') {
-        fieldsHtml += `
-          <div>
-            <label class="text-[11px] text-slate-400 font-semibold flex justify-between">
-              <span>Active Dispatch (MW)</span>
-              <span class="text-emerald-400 font-mono">${data.pMW} MW</span>
-            </label>
-            <input type="range" min="0" max="${data.pMax}" step="1" value="${data.pMW}" oninput="updateAttr('pMW', parseFloat(this.value))" 
-              class="w-full accent-emerald-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer mt-2">
-          </div>
-          <div>
-            <label class="text-[11px] text-slate-400 font-semibold">Max Capacity Pmax (MW)</label>
-            <input type="number" value="${data.pMax}" onchange="updateAttr('pMax', parseFloat(this.value))" 
-              class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1">
-          </div>
-          <div>
-            <label class="text-[11px] text-slate-400 font-semibold">Marginal Cost ($/MWh)</label>
-            <input type="number" value="${data.cost || 20}" onchange="updateAttr('cost', parseFloat(this.value))" 
-              class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1">
+      let html = `<div class="font-mono">`;
+      html += fInput('Identifier Name', 'name');
+
+      if(selectedType === 'BUS') {
+        html += `
+          <div class="mb-3">
+            <label class="block text-[11px] font-bold text-slate-400 mb-1 tracking-wider uppercase">Voltage Level</label>
+            <select onchange="updateParam('kv', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-sm focus:border-indigo-500 outline-none text-slate-200 transition">
+              ${Object.keys(V_COLORS).map(kv => `<option value="${kv}" ${el.kv===kv?'selected':''}>${kv} kV</option>`).join('')}
+            </select>
           </div>
         `;
-      } else if (type === 'LOAD') {
-        fieldsHtml += `
-          <div>
-            <label class="text-[11px] text-slate-400 font-semibold">Active Demand (MW)</label>
-            <input type="number" value="${data.pMW}" onchange="updateAttr('pMW', parseFloat(this.value))" 
-              class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1">
+        html += fInput('Bus Length (px)', 'len', 'number');
+        html += `
+          <div class="mb-4">
+            <label class="block text-[11px] font-bold text-slate-400 mb-1 tracking-wider uppercase">Orientation (R)</label>
+            <button onclick="updateParam('rot', '${el.rot==='H'?'V':'H'}')" class="w-full bg-slate-800 hover:bg-slate-700 py-1.5 rounded border border-slate-600 transition text-sm flex justify-center items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              ${el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕'}
+            </button>
           </div>
         `;
-      } else if (type === 'LINE') {
-        fieldsHtml += `
-          <div>
-            <label class="text-[11px] text-slate-400 font-semibold">Per-Unit Reactance X (pu)</label>
-            <input type="number" step="0.01" value="${data.xPu}" onchange="updateAttr('xPu', parseFloat(this.value))" 
-              class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1">
-          </div>
-          <div>
-            <label class="text-[11px] text-slate-400 font-semibold">Thermal Rating Limit (MW)</label>
-            <input type="number" value="${data.maxMW}" onchange="updateAttr('maxMW', parseFloat(this.value))" 
-              class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1">
-          </div>
-          <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-xs space-y-1 font-mono">
-            <div class="flex justify-between"><span>Computed Active Flow:</span><span class="text-blue-400">${(data.pFlow || 0).toFixed(1)} MW</span></div>
-            <div class="flex justify-between"><span>Loading Percentage:</span><span class="${data.loadingPct > 100 ? 'text-red-400 font-bold' : 'text-emerald-400'}">${data.loadingPct || 0}%</span></div>
+      } 
+      else if (selectedType === 'COMP') {
+        if (['BREAKER', 'LINE', 'XFMR'].includes(el.type)) {
+           html += `
+          <div class="mb-4">
+            <label class="block text-[11px] font-bold text-slate-400 mb-1 tracking-wider uppercase">Orientation (R)</label>
+            <button onclick="updateParam('rot', '${el.rot==='H'?'V':'H'}')" class="w-full bg-slate-800 hover:bg-slate-700 py-1.5 rounded border border-slate-600 transition text-sm flex justify-center items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              ${el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕'}
+            </button>
           </div>
         `;
-      } else if (type === 'BREAKER') {
-        fieldsHtml += `
-          <button onclick="toggleBreaker('${data.id}')" class="w-full py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 ${data.status === 'CLOSED' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
-            <i class="ph-bold ph-power"></i> ${data.status === 'CLOSED' ? 'TRIP / OPEN BREAKER' : 'CLOSE BREAKER'}
+        }
+
+        if (el.type === 'GEN') {
+          html += fInput('Active Power (MW)', 'pMW', 'number');
+          html += fInput('Max Capacity (MW)', 'maxMW', 'number');
+        } else if (el.type === 'LOAD') {
+          html += fInput('Demand (MW)', 'pMW', 'number');
+        } else if (['LINE', 'XFMR'].includes(el.type)) {
+          html += fInput('Reactance (X p.u.)', 'xpu', 'number');
+          html += fInput('Thermal Limit (MW)', 'limit', 'number');
+        } else if (el.type === 'BREAKER') {
+          html += `
+            <div class="mb-4">
+              <label class="block text-[11px] font-bold text-slate-400 mb-1 tracking-wider uppercase">Breaker Status</label>
+              <button onclick="updateParam('status', '${el.status==='CLOSED'?'OPEN':'CLOSED'}')" class="w-full py-2.5 font-bold rounded border ${el.status==='CLOSED' ? 'bg-red-900/30 text-red-400 border-red-800' : 'bg-green-900/30 text-green-400 border-green-800'} transition shadow-lg">
+                ${el.status === 'CLOSED' ? 'TRIP (OPEN)' : 'CLOSE BREAKER'}
+              </button>
+            </div>
+          `;
+        }
+      }
+
+      html += `
+        <div class="mt-4 pt-4 border-t border-slate-700 space-y-2">
+          <button onclick="deleteElement()" class="w-full bg-red-900/20 text-red-500 hover:bg-red-900/40 py-1.5 rounded border border-red-900/50 text-xs transition font-bold flex justify-center items-center gap-1">
+             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+             Delete Element
           </button>
-        `;
-      }
-
-      fieldsHtml += `
-        <button onclick="deleteSelectedElement()" class="w-full py-2 px-3 bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/40 rounded-xl text-xs font-medium transition flex items-center justify-center gap-1.5 mt-4">
-          <i class="ph-bold ph-trash"></i> Delete Element
-        </button>
-      `;
-
-      form.innerHTML = fieldsHtml;
-      renderCanvas();
+        </div>
+      </div>`;
+      
+      panel.innerHTML = html;
     }
 
-    function updateAttr(key, val) {
-      if (selectedElement && selectedElement.data) {
-        selectedElement.data[key] = val;
-        renderCanvas();
-      }
-    }
-
-    function toggleBreaker(cbId) {
-      const cb = network.breakers.find(b => b.id === cbId);
-      if (cb) {
-        cb.status = cb.status === 'CLOSED' ? 'OPEN' : 'CLOSED';
-        logEvent(`Circuit Breaker ${cb.id} switched to ${cb.status}`, cb.status === 'OPEN' ? 'WARN' : 'INFO');
-        renderCanvas();
-        if (selectedElement && selectedElement.data.id === cbId) selectElement('BREAKER', cb);
-      }
-    }
-
-    function spawnElement(type) {
-      const id = `${type}_${Date.now().toString().slice(-4)}`;
-      if (type === 'BUS') {
-        network.buses.push({ id, name: `Bus ${network.buses.length + 1}`, kv: 230, x: 200, y: 200 });
-      } else if (type === 'GENERATOR' && network.buses.length > 0) {
-        network.generators.push({ id, name: `Gen ${id}`, busId: network.buses[0].id, pMW: 50, pMax: 100, cost: 20 });
-      } else if (type === 'LOAD' && network.buses.length > 0) {
-        network.loads.push({ id, name: `Load ${id}`, busId: network.buses[0].id, pMW: 40 });
-      } else if (type === 'TRANSFORMER' && network.buses.length >= 2) {
-        network.transformers.push({ id, name: `TR ${id}`, fromBus: network.buses[0].id, toBus: network.buses[1].id, xPu: 0.04, mva: 100 });
-      } else if (type === 'BREAKER' && network.lines.length > 0) {
-        network.breakers.push({ id, name: `CB ${id}`, elementId: network.lines[0].id, status: 'CLOSED' });
-      } else {
-        logEvent('Need at least 1 or 2 buses created before placing attached components.', 'WARN');
-        return;
-      }
-      logEvent(`Created new element: ${id}`);
-      renderCanvas();
-    }
-
-    function deleteSelectedElement() {
-      if (!selectedElement) return;
-      const { type, data } = selectedElement;
-
-      if (type === 'BUS') network.buses = network.buses.filter(b => b.id !== data.id);
-      else if (type === 'GENERATOR') network.generators = network.generators.filter(g => g.id !== data.id);
-      else if (type === 'LOAD') network.loads = network.loads.filter(l => l.id !== data.id);
-      else if (type === 'LINE') network.lines = network.lines.filter(l => l.id !== data.id);
-      else if (type === 'TRANSFORMER') network.transformers = network.transformers.filter(t => t.id !== data.id);
-      else if (type === 'BREAKER') network.breakers = network.breakers.filter(c => c.id !== data.id);
-
-      selectedElement = null;
-      document.getElementById('emptyInspectState').classList.remove('hidden');
-      document.getElementById('inspectForm').classList.add('hidden');
-      renderCanvas();
-    }
-
-    // Wiring Mode Manager
-    function handleNodeClick(type, node) {
-      if (!wiringMode) return;
-      if (!wireSource) {
-        wireSource = node;
-        document.getElementById('connectionStatusBadge').children[1].textContent = `Connected from ${node.name}. Click target bus...`;
-      } else {
-        if (wireSource.id !== node.id) {
-          const id = `LINE_${Date.now().toString().slice(-4)}`;
-          network.lines.push({
-            id,
-            name: `Line ${wireSource.name} - ${node.name}`,
-            fromBus: wireSource.id,
-            toBus: node.id,
-            xPu: 0.05,
-            maxMW: 100
-          });
-          logEvent(`Wired transmission path: ${wireSource.name} <-> ${node.name}`);
-        }
-        wireSource = null;
-        toggleWiringMode(false);
-        renderCanvas();
-      }
-    }
-
-    function toggleWiringMode(active) {
-      wiringMode = active;
-      const btn = document.getElementById('wireToolBtn');
-      const badge = document.getElementById('connectionStatusBadge');
-      const text = document.getElementById('wireToolText');
-
-      if (wiringMode) {
-        btn.classList.replace('bg-slate-800', 'bg-blue-600');
-        badge.classList.remove('hidden');
-        badge.classList.add('flex');
-        text.textContent = 'Connect Mode (Active)';
-      } else {
-        btn.classList.replace('bg-blue-600', 'bg-slate-800');
-        badge.classList.add('hidden');
-        badge.classList.remove('flex');
-        text.textContent = 'Connect Mode (Off)';
-        wireSource = null;
-      }
-    }
-
-    function startDragNode(e, type, node) {
-      if (wiringMode) return;
-      draggingNode = node;
-      startPanX = e.clientX - node.x;
-      startPanY = e.clientY - node.y;
-    }
-
-    function logEvent(msg, type = 'INFO') {
-      const container = document.getElementById('eventLog');
-      const time = new Date().toLocaleTimeString();
-      const div = document.createElement('div');
-      div.className = type === 'WARN' ? 'text-amber-400 font-bold' : 'text-slate-300';
-      div.textContent = `[${time}] ${msg}`;
-      container.appendChild(div);
-      container.scrollTop = container.scrollHeight;
-    }
-
-    // Pan & Zoom Setup
-    function initViewportPanZoom() {
-      const container = document.getElementById('canvasContainer');
-      const viewportGroup = document.getElementById('viewportGroup');
-
-      function updateTransform() {
-        viewportGroup.setAttribute('transform', `translate(${panX}, ${panY}) scale(${zoomLevel})`);
-      }
-
-      container.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.cursor-pointer') || e.target.closest('.cursor-move')) return;
-        isPanning = true;
-        startPanX = e.clientX - panX;
-        startPanY = e.clientY - panY;
-      });
-
-      window.addEventListener('mousemove', (e) => {
-        if (draggingNode) {
-          draggingNode.x = e.clientX - startPanX;
-          draggingNode.y = e.clientY - startPanY;
-          renderCanvas();
-        } else if (isPanning) {
-          panX = e.clientX - startPanX;
-          panY = e.clientY - startPanY;
-          updateTransform();
-        }
-      });
-
-      window.addEventListener('mouseup', () => {
-        isPanning = false;
-        draggingNode = null;
-      });
-
-      container.addEventListener('wheel', (e) => {
-        e.preventDefault();
-        const factor = e.deltaY < 0 ? 1.1 : 0.9;
-        zoomLevel = Math.min(Math.max(0.3, zoomLevel * factor), 2.5);
-        updateTransform();
-      }, { passive: false });
-
-      document.getElementById('zoomInBtn').onclick = () => { zoomLevel = Math.min(2.5, zoomLevel * 1.2); updateTransform(); };
-      document.getElementById('zoomOutBtn').onclick = () => { zoomLevel = Math.max(0.3, zoomLevel / 1.2); updateTransform(); };
-      document.getElementById('resetViewBtn').onclick = () => { zoomLevel = 1.0; panX = 40; panY = 40; updateTransform(); };
-    }
-
-    // Initializer
-    window.onload = function() {
-      initViewportPanZoom();
-
-      // Load initial Sample 5-Bus Model
-      network = JSON.parse(JSON.stringify(SAMPLE_5BUS_MODEL));
-
-      document.getElementById('solveFlowBtn').onclick = () => { renderCanvas(); logEvent('Power flow manually solved.', 'INFO'); };
-      document.getElementById('wireToolBtn').onclick = () => toggleWiringMode(!wiringMode);
-      document.getElementById('loadSampleBtn').onclick = () => { network = JSON.parse(JSON.stringify(SAMPLE_5BUS_MODEL)); renderCanvas(); logEvent('Loaded Sample 5-Bus Grid Model.'); };
-      document.getElementById('clearCanvasBtn').onclick = () => { network = { buses: [], generators: [], loads: [], lines: [], transformers: [], breakers: [] }; renderCanvas(); logEvent('Canvas cleared.'); };
-      document.getElementById('clearLogBtn').onclick = () => { document.getElementById('eventLog').innerHTML = ''; };
-
-      // JSON Export/Import
-      document.getElementById('exportJsonBtn').onclick = () => {
-        const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(network, null, 2));
-        const a = document.createElement('a');
-        a.setAttribute("href", str);
-        a.setAttribute("download", "network_model.json");
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      };
-
-      const importInput = document.getElementById('importFileInput');
-      document.getElementById('importJsonBtn').onclick = () => importInput.click();
-      importInput.onchange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = (evt) => {
-            network = JSON.parse(evt.target.result);
-            renderCanvas();
-            logEvent('Imported external JSON network model.');
-          };
-          reader.readAsText(file);
-        }
-      };
-
-      renderCanvas();
+    window.deleteElement = function() {
+      state.wires = state.wires.filter(w => !w.src.startsWith(selectedId) && !w.tgt.startsWith(selectedId));
+      if(selectedType === 'BUS') state.buses = state.buses.filter(b => b.id !== selectedId);
+      else state.components = state.components.filter(c => c.id !== selectedId);
+      
+      selectedId = null;
+      hideHoverTooltip();
+      buildInspector();
+      render();
     };
+
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+      const a = document.createElement('a');
+      a.href = dataStr; a.download = 'grid_model.json';
+      a.click();
+      showToast("Model Exported Successfully!");
+    }
+
+    function importData(e) {
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try { 
+          let loaded = JSON.parse(e.target.result); 
+          if(loaded.buses && loaded.components && loaded.wires) {
+            state = loaded;
+            vp.x = 50; vp.y = 50; vp.scale = 1;
+            $('transformGroup').setAttribute('transform', `translate(${vp.x}, ${vp.y}) scale(${vp.scale})`);
+            selectedId = null; buildInspector(); render();
+            showToast("Model Loaded Successfully!");
+          } else showToast("Invalid JSON Schema.", "error");
+        } catch(err) { showToast('Invalid JSON file', "error"); }
+      };
+      reader.readAsText(file);
+      e.target.value = ''; // reset file input
+    }
+
+    function clearCanvas() {
+      if(confirm('Are you sure you want to clear the entire network?')) {
+        state = { buses: [], components: [], wires: [] };
+        selectedId = null; buildInspector(); render();
+        showToast("Canvas Cleared");
+      }
+    }
+
+    // Default Scenario Loader
+    function loadTemplate() {
+      state.buses = [
+        { id: 'B1', name: 'MAIN BUS 1', x: 200, y: 150, len: 400, rot: 'H', kv: '500' },
+        { id: 'B2', name: 'MAIN BUS 2', x: 200, y: 450, len: 400, rot: 'H', kv: '500' },
+        { id: 'B3', name: 'SUB 230kV', x: 700, y: 300, len: 200, rot: 'V', kv: '230' }
+      ];
+      state.components = [
+        { id: 'CB1', type: 'BREAKER', name: 'TIE 1', x: 100, y: 225, status: 'CLOSED', rot: 'V' },
+        { id: 'CB2', type: 'BREAKER', name: 'TIE 2', x: 100, y: 300, status: 'CLOSED', rot: 'V' },
+        { id: 'CB3', type: 'BREAKER', name: 'TIE 3', x: 100, y: 375, status: 'CLOSED', rot: 'V' },
+        { id: 'G1', type: 'GEN', name: 'UNIT_01', x: 200, y: 300, pMW: 600, maxMW: 800, rot: 'H' },
+        { id: 'X1', type: 'XFMR', name: 'T_500_230', x: 300, y: 300, xpu: 0.05, limit: 1000, rot: 'H' },
+        { id: 'L1', type: 'LINE', name: 'TL_230_01', x: 500, y: 300, xpu: 0.05, limit: 800, rot: 'H' },
+        { id: 'D1', type: 'LOAD', name: 'DIST_A', x: 800, y: 300, pMW: 450, rot: 'H' }
+      ];
+      state.wires = [
+        { id: 'W1', src: 'B1', tgt: 'CB1_T1' },
+        { id: 'W2', src: 'CB1_T2', tgt: 'CB2_T1' },
+        { id: 'W3', src: 'CB2_T2', tgt: 'CB3_T1' },
+        { id: 'W4', src: 'CB3_T2', tgt: 'B2' },
+        { id: 'W5', src: 'G1_T1', tgt: 'CB1_T2' }, // T-tap simulation
+        { id: 'W6', src: 'X1_T1', tgt: 'CB2_T2' }, // T-tap simulation
+        { id: 'W7', src: 'X1_T2', tgt: 'L1_T1' },
+        { id: 'W8', src: 'L1_T2', tgt: 'B3' },
+        { id: 'W9', src: 'B3', tgt: 'D1_T1' }
+      ];
+      vp.x = 50; vp.y = 50;
+      $('transformGroup').setAttribute('transform', `translate(${vp.x}, ${vp.y}) scale(${vp.scale})`);
+      render();
+    }
+
+    window.onload = loadTemplate;
   </script>
 </body>
 </html>
