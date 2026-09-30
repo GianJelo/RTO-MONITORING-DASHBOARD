@@ -1,794 +1,700 @@
-<html lang="en" class="dark fixed inset-0 w-full h-full overflow-hidden">
+<html lang="en" class="dark fixed inset-0 w-full h-full overflow-hidden bg-slate-950 text-slate-200">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>SLD Market Simulator</title>
+  <title>SLD Market Network Simulator Pro</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            panel: '#0f172a',
-            canvas: '#020617',
-            kv500: '#3b82f6',
-            kv230: '#ef4444',
-            kv138: '#f97316',
-            kv69:  '#06b6d4',
-            kv40:  '#22c55e',
-            kv7:   '#a855f7'
-          }
-        }
-      }
+      theme: { extend: { colors: { panel: '#0f172a', canvas: '#020617', kv500: '#3b82f6', kv230: '#ef4444', kv138: '#f97316', kv69: '#06b6d4' } } }
     }
   </script>
   <style>
-    html, body { 
-        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-        width: 100%; height: 100%; height: 100dvh; 
-        margin: 0; padding: 0; overflow: hidden;
-        -webkit-text-size-adjust: 100%;
-        overscroll-behavior: none;
+    html, body {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      width: 100%; height: 100dvh; margin: 0; padding: 0; overflow: hidden;
+      overscroll-behavior: none; -webkit-touch-callout: none;
     }
     .no-touch { touch-action: none; -webkit-user-select: none; user-select: none; }
     input, select { -webkit-user-select: auto; user-select: auto; touch-action: auto; }
     
-    @keyframes dashFlow { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
-    @keyframes pulseWarning {
-      0%, 100% { stroke: #ef4444; filter: drop-shadow(0 0 6px #ef4444); }
-      50% { stroke: #fca5a5; filter: drop-shadow(0 0 12px #ef4444); }
+    .canvas-bg {
+      background-color: #020617;
+      background-image: radial-gradient(circle, #334155 1px, transparent 1px);
+      background-size: 40px 40px;
     }
-    .flow-line { stroke-dasharray: 8 8; animation: dashFlow 1s linear infinite; }
-    .overload { animation: pulseWarning 1s ease-in-out infinite !important; stroke-width: 3px !important; }
-    .canvas-bg { background-image: radial-gradient(circle, #334155 1px, transparent 1px); background-size: 30px 30px; }
+
+    @keyframes flowFwd { from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; } }
+    @keyframes flowRev { from { stroke-dashoffset: -24; } to { stroke-dashoffset: 0; } }
+    .flow-anim { stroke-dasharray: 4 8; stroke-linecap: round; }
+    .flow-anim.fwd { animation: flowFwd linear infinite; }
+    .flow-anim.rev { animation: flowRev linear infinite; }
     
+    @keyframes pulseWarning {
+      0%, 100% { filter: drop-shadow(0 0 4px #ef4444); stroke: #ef4444; }
+      50% { filter: drop-shadow(0 0 12px #f87171); stroke: #f87171; }
+    }
+    .overload { animation: pulseWarning 0.8s infinite; stroke-width: 5px !important; stroke-dasharray: none; }
+    
+    @keyframes flashText {
+      0%, 100% { opacity: 1; color: #ef4444; }
+      50% { opacity: 0.3; color: #f87171; }
+    }
+    .deficit-warn { animation: flashText 1s infinite; font-weight: bold; }
+
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-    
-    .resizer { width: 6px; background: #1e293b; cursor: col-resize; z-index: 40; flex-shrink: 0; }
+    .resizer { width: 6px; background: #1e293b; cursor: col-resize; flex-shrink: 0; z-index: 40; }
     .resizer:hover, .resizer:active { background: #6366f1; }
   </style>
 </head>
-<body class="bg-canvas text-slate-200 font-sans flex flex-col no-touch">
+<body class="flex flex-col font-sans no-touch text-sm">
 
-  <header class="h-14 border-b border-slate-700 bg-panel px-3 flex items-center justify-between z-30 shrink-0 shadow-md">
-    <div class="flex items-center gap-2">
-      <div class="w-8 h-8 rounded bg-indigo-600 flex items-center justify-center font-bold font-mono text-white text-xs shadow-[0_0_8px_rgba(79,70,229,0.5)]">SLD</div>
-      <h1 class="font-bold text-sm tracking-wide hidden md:block text-slate-300">MARKET SIMULATOR</h1>
+  <header class="h-14 border-b border-slate-700 bg-panel px-4 flex items-center justify-between z-30 shrink-0 shadow-lg">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded bg-indigo-600 flex items-center justify-center font-bold text-xs text-white shadow-[0_0_10px_rgba(79,70,229,0.5)]">SLD</div>
+      <h1 class="font-bold text-sm tracking-wide hidden sm:block text-slate-300">MARKET NETWORK SIMULATOR</h1>
     </div>
-
     <div class="flex items-center gap-2 text-xs">
-      <button id="btnSelect" class="px-3 py-1.5 rounded bg-indigo-600 text-white font-medium transition flex items-center gap-1 shadow-lg" onclick="setMode('SELECT')">
-        Select (V)
-      </button>
-      <button id="btnWire" class="px-3 py-1.5 rounded border border-slate-600 hover:bg-slate-700 text-slate-300 font-medium transition relative flex items-center gap-1" onclick="setMode('WIRE')">
+      <button id="btnSelect" class="px-4 py-2 rounded bg-indigo-600 text-white font-semibold flex items-center gap-1 shadow transition" onclick="setMode('SELECT')">Select (V)</button>
+      <button id="btnWire" class="px-4 py-2 rounded border border-slate-600 text-slate-300 hover:bg-slate-700 font-semibold relative transition" onclick="setMode('WIRE')">
         Wire (W)
         <span id="wireBadge" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping"></span>
       </button>
-
       <div class="w-px h-5 bg-slate-600 mx-1"></div>
-
-      <button class="px-3 py-1.5 rounded bg-emerald-600/80 hover:bg-emerald-500 text-white font-medium transition" onclick="exportData()">Export</button>
-      <button class="px-3 py-1.5 rounded bg-amber-600/80 hover:bg-amber-500 text-white font-medium transition" onclick="document.getElementById('fileUpload').click()">Import</button>
+      <button class="px-3 py-2 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-semibold shadow" onclick="exportData()">Export</button>
+      <button class="px-3 py-2 rounded bg-amber-700 hover:bg-amber-600 text-white font-semibold shadow" onclick="document.getElementById('fileUpload').click()">Import</button>
       <input type="file" id="fileUpload" class="hidden" accept=".json" onchange="importData(event)">
-      
-      <div class="w-px h-5 bg-slate-600 mx-1 hidden sm:block"></div>
-      <button class="px-3 py-1.5 rounded border border-red-900/50 text-red-400 hover:bg-red-900/50 transition hidden sm:block" onclick="clearCanvas()">Clear</button>
+      <button class="px-3 py-2 rounded border border-red-900 text-red-400 hover:bg-red-900/50 hidden sm:block ml-2" onclick="clearCanvas()">Clear</button>
     </div>
   </header>
 
   <div class="flex-1 flex overflow-hidden w-full h-full relative">
-    
-    <aside id="leftPanel" class="w-[200px] md:w-[240px] bg-panel flex flex-col z-20 shrink-0 h-full border-r border-slate-800">
-      <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider shrink-0 bg-slate-900/50">Palette</div>
-      <div class="p-2 grid grid-cols-2 gap-2 flex-1 overflow-y-auto pointer-events-auto" style="touch-action: pan-y;">
-        <button onclick="spawnComponent('BUS')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
-          <div class="w-10 h-1.5 bg-kv230 rounded-sm group-hover:scale-110 transition-transform"></div>
-          <span class="text-[10px] font-medium">Busbar</span>
+    <aside id="leftPanel" class="w-[240px] bg-panel flex flex-col z-20 shrink-0 border-r border-slate-800">
+      <div class="p-3 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-widest bg-slate-900/80">Elements</div>
+      <div class="p-3 grid grid-cols-2 gap-3 flex-1 overflow-y-auto pointer-events-auto" style="touch-action: pan-y;">
+        <button onclick="spawn('BUS')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition hover:scale-105">
+          <div class="w-10 h-2 bg-kv230 rounded-sm"></div><span class="text-[10px] font-medium">Busbar</span>
         </button>
-        <button onclick="spawnComponent('GEN')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
-          <div class="w-7 h-7 rounded-full border-2 border-green-500 text-green-500 flex items-center justify-center text-[11px] font-bold group-hover:scale-110 transition-transform">G</div>
+        <button onclick="spawn('GEN')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition hover:scale-105">
+          <div class="w-7 h-7 rounded-full border-2 border-emerald-500 text-emerald-500 flex items-center justify-center font-bold text-xs">G</div>
           <span class="text-[10px] font-medium">Generator</span>
         </button>
-        <button onclick="spawnComponent('LOAD')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
-          <div class="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[16px] border-l-transparent border-r-transparent border-t-amber-500 group-hover:scale-110 transition-transform"></div>
+        <button onclick="spawn('LOAD')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition hover:scale-105">
+          <div class="w-0 h-0 border-l-[10px] border-r-[10px] border-t-[14px] border-l-transparent border-r-transparent border-t-amber-500"></div>
           <span class="text-[10px] font-medium">Load</span>
         </button>
-        <button onclick="spawnComponent('LINE')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
-          <div class="w-10 h-0.5 bg-blue-400 relative group-hover:scale-110 transition-transform">
-            <div class="absolute -top-1 left-1/2 w-2.5 h-2.5 bg-blue-400 rounded-sm transform -translate-x-1/2"></div>
-          </div>
-          <span class="text-[10px] font-medium">Trans. Line</span>
-        </button>
-        <button onclick="spawnComponent('XFMR')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
-          <div class="flex items-center group-hover:scale-110 transition-transform">
-            <div class="w-5 h-5 rounded-full border-2 border-orange-400 -mr-2"></div>
-            <div class="w-5 h-5 rounded-full border-2 border-orange-400"></div>
-          </div>
+        <button onclick="spawn('XFMR')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition hover:scale-105">
+          <div class="flex items-center"><div class="w-5 h-5 rounded-full border-2 border-orange-400 -mr-2"></div><div class="w-5 h-5 rounded-full border-2 border-orange-400"></div></div>
           <span class="text-[10px] font-medium">Transformer</span>
         </button>
-        <button onclick="spawnComponent('BREAKER')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
-          <div class="w-6 h-6 border-2 border-red-500 bg-red-900 rounded flex items-center justify-center font-bold text-[9px] text-red-400 group-hover:scale-110 transition-transform">CB</div>
+        <button onclick="spawn('BREAKER')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition hover:scale-105">
+          <div class="w-6 h-6 border-2 border-red-500 bg-red-900 rounded flex items-center justify-center text-[9px] font-bold text-red-400">CB</div>
           <span class="text-[10px] font-medium">Breaker</span>
         </button>
       </div>
       
-      <div class="p-3 border-t border-slate-700 bg-slate-900 text-xs font-mono shrink-0">
-        <div class="font-bold text-slate-400 mb-2 uppercase text-[10px]">Live System Balance</div>
-        <div class="flex justify-between text-slate-300 mb-1"><span>Generation:</span> <span id="lblGen" class="text-green-400 font-bold">0.0 MW</span></div>
-        <div class="flex justify-between text-slate-300 mb-1"><span>Demand:</span> <span id="lblLoad" class="text-amber-400 font-bold">0.0 MW</span></div>
-        <div class="flex justify-between text-slate-300 pt-1 border-t border-slate-700"><span>Net Loss:</span> <span id="lblLoss" class="text-red-400 font-bold">0.0 MW</span></div>
+      <div class="p-4 border-t border-slate-700 bg-slate-900 text-xs shrink-0 font-mono">
+        <div class="text-[10px] text-slate-500 font-bold mb-2 uppercase">Live System Balance</div>
+        <div class="flex justify-between mb-1"><span>Generation Cap:</span><span id="lblGenCap" class="text-emerald-400">0 MW</span></div>
+        <div class="flex justify-between mb-1"><span>System Demand:</span><span id="lblLoad" class="text-amber-400">0 MW</span></div>
+        <div class="flex justify-between pt-1 border-t border-slate-800 mt-1"><span>Active Output:</span><span id="lblGenAct" class="text-blue-400">0 MW</span></div>
+        <div id="lblDeficit" class="hidden mt-2 text-center deficit-warn text-[10px] bg-red-950/50 py-1 rounded border border-red-900">SYSTEM DEFICIT - LOAD SHEDDING</div>
       </div>
     </aside>
 
-    <div class="resizer no-touch hidden md:block" id="resizerLeft"></div>
+    <div class="resizer hidden md:block" id="resizerLeft"></div>
 
-    <main id="viewportContainer" class="flex-1 relative canvas-bg overflow-hidden cursor-grab active:cursor-grabbing min-w-0 h-full no-touch">
-      <svg id="canvas" class="w-full h-full absolute inset-0 font-sans pointer-events-none block">
+    <main id="viewportContainer" class="flex-1 relative canvas-bg overflow-hidden cursor-grab active:cursor-grabbing no-touch">
+      <svg id="canvas" class="w-full h-full absolute inset-0 block pointer-events-none">
         <g id="transformGroup" transform="translate(0,0) scale(1)">
           <g id="layer-wires"></g>
           <g id="layer-flow"></g>
-          <g id="layer-components"></g>
+          <g id="layer-wire-labels"></g>
           <g id="layer-buses"></g>
-          <g id="layer-snap-hints"></g>
-          <g id="layer-live-labels"></g> 
+          <g id="layer-components"></g>
+          <g id="layer-labels"></g>
           <line id="activeWire" x1="0" y1="0" x2="0" y2="0" stroke="#f43f5e" stroke-width="2.5" stroke-dasharray="6 4" class="hidden drop-shadow-[0_0_5px_#f43f5e]" />
-          <circle id="snapIndicator" cx="0" cy="0" r="8" fill="none" stroke="#22c55e" stroke-width="2" class="hidden drop-shadow-[0_0_5px_#22c55e]" />
         </g>
       </svg>
     </main>
 
-    <div class="resizer no-touch hidden md:block" id="resizerRight"></div>
+    <div class="resizer hidden md:block" id="resizerRight"></div>
 
-    <aside id="rightPanel" class="w-[220px] md:w-[280px] bg-panel flex flex-col z-20 shrink-0 h-full border-l border-slate-800">
-      <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider flex justify-between items-center bg-slate-900/50 shrink-0">
-        <span>Inspector</span>
-        <span id="insType" class="text-indigo-400 bg-indigo-900/40 px-1.5 py-0.5 rounded border border-indigo-700/50">NONE</span>
+    <aside id="rightPanel" class="w-[280px] bg-panel flex flex-col z-20 shrink-0 border-l border-slate-800">
+      <div class="p-3 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-widest flex justify-between items-center bg-slate-900/80">
+        <span>Inspector</span><span id="insType" class="text-indigo-400 border border-indigo-700/50 bg-indigo-900/30 px-1.5 py-0.5 rounded">NONE</span>
       </div>
       
-      <div id="inspectorPanel" class="p-4 overflow-y-auto flex-1 text-[11px] font-sans pointer-events-auto" style="touch-action: pan-y;">
-        <div id="inspector-none" class="text-center py-10 text-slate-500 text-xs">
-          Select an element to inspect and edit.<br><br><b>R</b> to rotate.<br><b>Del</b> to remove.
-        </div>
-
+      <div id="inspectorPanel" class="p-4 overflow-y-auto flex-1 text-xs pointer-events-auto" style="touch-action: pan-y;">
+        <div id="inspector-none" class="text-center py-10 text-slate-500">Select an element or wire.<br><br><b>R</b> to Rotate<br><b>Del</b> to Delete</div>
         <div id="inspector-form" class="hidden flex flex-col gap-3">
           
-          <div id="wrap-name">
-            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Identifier Name</label>
-            <input id="prop-name" type="text" oninput="updateParam('name', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+          <div id="wrap-name"><label class="block font-bold text-slate-500 mb-1 text-[10px] uppercase">Name</label>
+            <input id="prop-name" type="text" oninput="updateProp('name', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-slate-200">
           </div>
 
-          <div id="wrap-kv" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Voltage Level</label>
-            <select id="prop-kv" onchange="updateParam('kv', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
-              <option value="500">500 kV (Blue)</option>
-              <option value="230">230 kV (Red)</option>
-              <option value="138">138 kV (Orange)</option>
-              <option value="69">69 kV (Cyan)</option>
-              <option value="40">40 kV (Green)</option>
-              <option value="7">7 kV (Purple)</option>
+          <div id="wrap-kv" class="hidden"><label class="block font-bold text-slate-500 mb-1 text-[10px] uppercase">Voltage</label>
+            <select id="prop-kv" onchange="updateProp('kv', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-slate-200">
+              <option value="500">500 kV</option><option value="230">230 kV</option><option value="138">138 kV</option><option value="69">69 kV</option>
             </select>
           </div>
 
-          <div id="wrap-len" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Bus Length (px)</label>
-            <input id="prop-len" type="number" oninput="updateParam('len', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+          <div id="wrap-len" class="hidden"><label class="block font-bold text-slate-500 mb-1 text-[10px] uppercase">Bus Length (px)</label>
+            <input id="prop-len" type="number" oninput="updateProp('len', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-slate-200">
           </div>
 
-          <div id="wrap-pmw" class="hidden">
-            <label id="lbl-pmw" class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Active Power (MW)</label>
-            <input id="prop-pmw" type="number" oninput="updateParam('pMW', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+          <div id="wrap-cap" class="hidden"><label class="block font-bold text-slate-500 mb-1 text-[10px] uppercase">Max Capacity (MW)</label>
+            <input id="prop-cap" type="number" oninput="updateProp('pMax', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-emerald-300">
           </div>
 
-          <div id="wrap-maxmw" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Max Capacity (MW)</label>
-            <input id="prop-maxmw" type="number" oninput="updateParam('maxMW', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+          <div id="wrap-pmw" class="hidden"><label id="lbl-pmw" class="block font-bold text-slate-500 mb-1 text-[10px] uppercase">Demand (MW)</label>
+            <input id="prop-pmw" type="number" oninput="updateProp('pMW', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-amber-300">
           </div>
 
-          <div id="wrap-xpu" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Reactance (X p.u.)</label>
-            <input id="prop-xpu" type="number" oninput="updateParam('xpu', Number(this.value))" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+          <div id="wrap-xpu" class="hidden"><label class="block font-bold text-slate-500 mb-1 text-[10px] uppercase">Reactance (X pu)</label>
+            <input id="prop-xpu" type="number" step="0.001" oninput="updateProp('xpu', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-slate-200">
           </div>
 
-          <div id="wrap-limit" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider text-[9px]">Thermal Limit (MW)</label>
-            <input id="prop-limit" type="number" oninput="updateParam('limit', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+          <div id="wrap-limit" class="hidden"><label class="block font-bold text-slate-500 mb-1 text-[10px] uppercase">Thermal Limit (MW)</label>
+            <input id="prop-limit" type="number" oninput="updateProp('limit', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 outline-none focus:border-indigo-500 text-red-300">
           </div>
 
           <div id="wrap-rotate" class="hidden mt-2">
-            <button onclick="toggleRotate()" class="w-full bg-slate-800 hover:bg-slate-700 py-1.5 rounded border border-slate-600 transition flex justify-center items-center font-medium">
-              <span id="txt-rotate">Orientation</span>
-            </button>
+            <button onclick="toggleRotation()" class="w-full py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded font-medium transition"><span id="txt-rotate">Orientation</span></button>
           </div>
 
           <div id="wrap-breaker" class="hidden mt-2">
-            <button id="btn-breaker" onclick="toggleBreaker()" class="w-full py-2 font-bold rounded border shadow-sm transition tracking-wider text-xs"></button>
+            <button id="btn-breaker" onclick="toggleBreaker()" class="w-full py-2 font-bold rounded border shadow-sm transition tracking-widest text-[10px]"></button>
           </div>
 
-          <div class="mt-4 pt-3 border-t border-slate-700/80 flex flex-col gap-2 shrink-0">
-            <button onclick="duplicateElement()" class="w-full bg-indigo-900/20 text-indigo-400 hover:bg-indigo-900/40 py-1.5 rounded border border-indigo-900/50 transition font-bold flex justify-center items-center">
-               Duplicate
-            </button>
-            <button onclick="deleteElement()" class="w-full bg-red-900/20 text-red-500 hover:bg-red-900/40 py-1.5 rounded border border-red-900/50 transition font-bold flex justify-center items-center">
-               Delete
-            </button>
+          <div class="mt-4 pt-3 border-t border-slate-800 flex flex-col gap-2 shrink-0">
+            <button onclick="duplicateElem()" class="w-full bg-indigo-900/30 text-indigo-400 hover:bg-indigo-900/50 py-1.5 rounded border border-indigo-800/50 transition font-bold">Duplicate</button>
+            <button onclick="deleteElem()" class="w-full bg-red-900/30 text-red-400 hover:bg-red-900/50 py-1.5 rounded border border-red-800/50 transition font-bold">Delete</button>
           </div>
         </div>
       </div>
     </aside>
-
   </div>
 
   <div id="toastContainer" class="absolute top-16 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <script>
-    const V_COLORS = { '500':'#3b82f6', '230':'#ef4444', '138':'#f97316', '69':'#06b6d4', '40':'#22c55e', '7':'#a855f7' };
+    const V_COLORS = { '500':'#3b82f6', '230':'#ef4444', '138':'#f97316', '69':'#06b6d4' };
     let state = { buses: [], components: [], wires: [] };
     
     let mode = 'SELECT'; 
-    let selectedId = null;
-    let selectedType = null; 
-    let wireSourceTerm = null; 
+    let selId = null, selType = null;
+    let wireSrc = null;
     
-    let vp = { x: 50, y: 50, scale: 1, isDragging: false, startX: 0, startY: 0 };
-    let dragElement = null; 
-    let snapTarget = null; 
+    let vp = { x: 0, y: 0, scale: 1, isDrag: false, startX: 0, startY: 0 };
+    let dragEl = null;
 
     const $ = id => document.getElementById(id);
-    const genId = prefix => prefix + '_' + Math.random().toString(36).substr(2, 6).toUpperCase();
-    const createSVG = (tag, attrs) => {
-      const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
-      for (let k in attrs) el.setAttribute(k, attrs[k]);
-      return el;
-    };
+    const createSVG = (tag, attrs) => { const el = document.createElementNS('http://www.w3.org/2000/svg', tag); for(let k in attrs) el.setAttribute(k, attrs[k]); return el; };
+    const genId = prefix => prefix + '_' + Math.random().toString(36).substr(2,6).toUpperCase();
 
-    function showToast(msg, type='info') {
-      const colors = type==='error'?'bg-red-900 border-red-500 text-red-200' : 'bg-emerald-900 border-emerald-500 text-emerald-200';
+    function showToast(msg, isErr=false) {
       const t = document.createElement('div');
-      t.className = `px-4 py-2 rounded border ${colors} shadow-lg text-sm font-medium z-50 transition-opacity duration-500`;
-      t.innerText = msg;
-      $('toastContainer').appendChild(t);
+      t.className = `px-4 py-2 rounded shadow-lg text-sm font-bold border transition-opacity duration-500 ` + (isErr ? 'bg-red-900 border-red-600 text-red-200' : 'bg-emerald-900 border-emerald-600 text-emerald-200');
+      t.innerText = msg; $('toastContainer').appendChild(t);
       setTimeout(() => { t.style.opacity = '0'; setTimeout(()=>t.remove(), 500); }, 2500);
     }
 
-    const getBus = id => state.buses.find(b => b.id === id);
-    const getComp = id => state.components.find(c => c.id === id);
-
     function initSplitters() {
-      let isResizing = null;
-      const left = $('resizerLeft');
-      const right = $('resizerRight');
-      if(!left || !right) return;
-      
-      left.addEventListener('pointerdown', e => { isResizing = 'left'; e.preventDefault(); left.setPointerCapture(e.pointerId); });
-      right.addEventListener('pointerdown', e => { isResizing = 'right'; e.preventDefault(); right.setPointerCapture(e.pointerId); });
-      
+      let isR = null; const L = $('resizerLeft'), R = $('resizerRight');
+      L.addEventListener('pointerdown', e => { isR = 'L'; e.preventDefault(); L.setPointerCapture(e.pointerId); });
+      R.addEventListener('pointerdown', e => { isR = 'R'; e.preventDefault(); R.setPointerCapture(e.pointerId); });
       window.addEventListener('pointermove', e => {
-        if (!isResizing) return;
-        if (isResizing === 'left') {
-          let w = e.clientX;
-          if (w > 150 && w < 400) $('leftPanel').style.width = w + 'px';
-        } else if (isResizing === 'right') {
-          let w = document.body.clientWidth - e.clientX;
-          if (w > 180 && w < 400) $('rightPanel').style.width = w + 'px';
-        }
+        if(!isR) return;
+        if(isR === 'L') { let w = e.clientX; if(w > 180 && w < 400) $('leftPanel').style.width = w + 'px'; }
+        if(isR === 'R') { let w = document.body.clientWidth - e.clientX; if(w > 200 && w < 400) $('rightPanel').style.width = w + 'px'; }
       });
-      window.addEventListener('pointerup', () => { isResizing = null; });
+      window.addEventListener('pointerup', () => isR = null);
     }
     initSplitters();
 
-    function getRawTerminalPos(termId) {
-      if(getBus(termId)) return { isBus: true, busId: termId, type: 'BUS' };
-      let [compId, port] = termId.split('_T');
-      let c = getComp(compId);
-      if(!c) return {x:0, y:0};
-      let isVert = c.rot === 'V';
-      if(['LINE', 'XFMR', 'BREAKER'].includes(c.type)) {
-        if(isVert) return port === '1' ? {x: c.x, y: c.y - 24} : {x: c.x, y: c.y + 24};
-        else       return port === '1' ? {x: c.x - 24, y: c.y} : {x: c.x + 24, y: c.y};
-      } else return {x: c.x, y: c.y - 18}; 
+    const getB = id => state.buses.find(b => b.id === id);
+    const getC = id => state.components.find(c => c.id === id);
+    const getW = id => state.wires.find(w => w.id === id);
+
+    function getRawPos(termId) {
+      if(getB(termId)) return { isBus: true, id: termId };
+      let [cId, port] = termId.split('_T'); let c = getC(cId); if(!c) return {x:0, y:0};
+      if(['XFMR', 'BREAKER'].includes(c.type)) {
+        if(c.rot === 'V') return port === '1' ? {x: c.x, y: c.y - 24} : {x: c.x, y: c.y + 24};
+        else return port === '1' ? {x: c.x - 24, y: c.y} : {x: c.x + 24, y: c.y};
+      } else return {x: c.x, y: c.y - 18};
     }
 
-    function getClosestPointOnBus(bus, px, py) {
+    function getBusPoint(bus, px, py) {
       if(!bus) return {x: px, y: py};
-      let hw = bus.rot === 'H' ? bus.len / 2 : 6;
-      let hh = bus.rot === 'H' ? 6 : bus.len / 2;
-      return {
-        x: Math.max(bus.x - hw, Math.min(px, bus.x + hw)),
-        y: Math.max(bus.y - hh, Math.min(py, bus.y + hh))
-      };
+      let hw = bus.rot === 'H' ? bus.len/2 : 6, hh = bus.rot === 'H' ? 6 : bus.len/2;
+      return { x: Math.max(bus.x-hw, Math.min(px, bus.x+hw)), y: Math.max(bus.y-hh, Math.min(py, bus.y+hh)) };
     }
 
-    function resolveWireCoordinates(srcTerm, tgtTerm) {
-      let p1 = getRawTerminalPos(srcTerm);
-      let p2 = getRawTerminalPos(tgtTerm);
-      if(p1.isBus && p2.isBus) { let b1 = getBus(p1.busId), b2 = getBus(p2.busId); return { x1: b1.x, y1: b1.y, x2: b2.x, y2: b2.y }; }
-      if(p1.isBus) { let cp = getClosestPointOnBus(getBus(p1.busId), p2.x, p2.y); return { x1: cp.x, y1: cp.y, x2: p2.x, y2: p2.y }; }
-      if(p2.isBus) { let cp = getClosestPointOnBus(getBus(p2.busId), p1.x, p1.y); return { x1: p1.x, y1: p1.y, x2: cp.x, y2: cp.y }; }
-      return { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+    function getWireCoords(w) {
+      let p1 = getRawPos(w.src), p2 = getRawPos(w.tgt);
+      if(p1.isBus && p2.isBus) { let b1 = getB(p1.id), b2 = getB(p2.id); return {x1: b1.x, y1: b1.y, x2: b2.x, y2: b2.y}; }
+      if(p1.isBus) { let cp = getBusPoint(getB(p1.id), p2.x, p2.y); return {x1: cp.x, y1: cp.y, x2: p2.x, y2: p2.y}; }
+      if(p2.isBus) { let cp = getBusPoint(getB(p2.id), p1.x, p1.y); return {x1: p1.x, y1: p1.y, x2: cp.x, y2: cp.y}; }
+      return {x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y};
     }
 
-    function dist2(v, w) { return (v.x - w.x)**2 + (v.y - w.y)**2; }
-    function distToSegmentSquared(p, v, w) {
-      let l2 = dist2(v, w);
-      if (l2 === 0) return dist2(p, v);
-      let t = Math.max(0, Math.min(1, ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2));
-      return { dist2: dist2(p, { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) }), point: { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) } };
-    }
-
-    function findSnapTarget(mx, my) {
-      let best = null; let minDist = 300; 
-      state.buses.forEach(b => {
-        let hw = b.rot === 'H' ? b.len / 2 : 8, hh = b.rot === 'H' ? 8 : b.len / 2;
-        let cx = Math.max(b.x - hw, Math.min(mx, b.x + hw)), cy = Math.max(b.y - hh, Math.min(my, b.y + hh));
-        let d2 = dist2({x:mx, y:my}, {x:cx, y:cy});
-        if(d2 < minDist) { minDist = d2; best = { type: 'term', id: b.id, x: cx, y: cy }; }
-      });
-      state.components.forEach(c => {
-        let t1 = getRawTerminalPos(`${c.id}_T1`), d1 = dist2({x:mx, y:my}, t1);
-        if(d1 < minDist) { minDist = d1; best = { type: 'term', id: `${c.id}_T1`, x: t1.x, y: t1.y }; }
-        if(['LINE', 'XFMR', 'BREAKER'].includes(c.type)) {
-          let t2 = getRawTerminalPos(`${c.id}_T2`), d2 = dist2({x:mx, y:my}, t2);
-          if(d2 < minDist) { minDist = d2; best = { type: 'term', id: `${c.id}_T2`, x: t2.x, y: t2.y }; }
-        }
-      });
-      if(best) return best;
-      
-      minDist = 200;
-      state.wires.forEach(w => {
-        if(wireSourceTerm && (w.src === wireSourceTerm || w.tgt === wireSourceTerm)) return; 
-        let c = resolveWireCoordinates(w.src, w.tgt);
-        let res = distToSegmentSquared({x:mx, y:my}, {x:c.x1, y:c.y1}, {x:c.x2, y:c.y2});
-        if(res.dist2 < minDist) { minDist = res.dist2; best = { type: 'wire', id: w.id, x: res.point.x, y: res.point.y, wireObj: w }; }
-      });
-      return best;
-    }
-
-    function getAvailableTerminal(type, id) {
-      if(type === 'BUS') return id; 
-      let c = getComp(id), usedTerms = new Set();
-      state.wires.forEach(w => { if(w.src.startsWith(id)) usedTerms.add(w.src); if(w.tgt.startsWith(id)) usedTerms.add(w.tgt); });
-      if(['GEN', 'LOAD'].includes(c.type)) return usedTerms.has(`${id}_T1`) ? null : `${id}_T1`;
-      if(!usedTerms.has(`${id}_T1`)) return `${id}_T1`;
-      if(!usedTerms.has(`${id}_T2`)) return `${id}_T2`;
-      return null; 
+    function distPointToSegment(px, py, x1, y1, x2, y2) {
+      let l2 = (x2-x1)**2 + (y2-y1)**2;
+      if(l2 === 0) return Math.hypot(px-x1, py-y1);
+      let t = Math.max(0, Math.min(1, ((px-x1)*(x2-x1) + (py-y1)*(y2-y1)) / l2));
+      return Math.hypot(px - (x1 + t*(x2-x1)), py - (y1 + t*(y2-y1)));
     }
 
     function solvePowerFlow() {
-      let totalGen = 0, totalLoad = 0;
       let parent = {};
       const find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
-      const union = (i, j) => { if(!parent[i]) parent[i] = i; if(!parent[j]) parent[j] = j; parent[find(i)] = find(j); };
+      const union = (i, j) => { if(!parent[i]) parent[i]=i; if(!parent[j]) parent[j]=j; let ri = find(i), rj = find(j); if(ri !== rj) parent[ri] = rj; };
 
       state.buses.forEach(b => parent[b.id] = b.id);
       state.components.forEach(c => {
         parent[`${c.id}_T1`] = `${c.id}_T1`;
-        if(['LINE', 'XFMR', 'BREAKER'].includes(c.type)) parent[`${c.id}_T2`] = `${c.id}_T2`;
+        if(['XFMR', 'BREAKER'].includes(c.type)) parent[`${c.id}_T2`] = `${c.id}_T2`;
       });
-      state.wires.forEach(w => union(w.src, w.tgt));
+      
+      // Zero impedance branches (Closed breakers)
+      state.components.forEach(c => { if(c.type==='BREAKER' && c.status==='CLOSED') union(`${c.id}_T1`, `${c.id}_T2`); });
 
-      let nodeMap = {}; 
-      Object.keys(parent).forEach(term => {
-        let root = find(term);
-        if(!nodeMap[root]) nodeMap[root] = { id: root, pNet: 0, theta: 0, energized: false, isSlack: false };
+      let nodes = {};
+      Object.keys(parent).forEach(t => {
+        let r = find(t); if(!nodes[r]) nodes[r] = { id: r, pNet: 0, pLoad: 0, maxGen: 0, theta: 0, terms: [] };
+        nodes[r].terms.push(t);
       });
 
-      let branches = [];
+      // Tally Gen/Load mapping to nodes
+      let sysLoad = 0, sysGenCap = 0;
       state.components.forEach(c => {
         let r1 = find(`${c.id}_T1`);
-        if(c.type === 'GEN') { nodeMap[r1].pNet += Number(c.pMW); nodeMap[r1].energized = true; nodeMap[r1].isSlack = true; totalGen += Number(c.pMW); }
-        else if(c.type === 'LOAD') { nodeMap[r1].pNet -= Number(c.pMW); totalLoad += Number(c.pMW); }
-        else if(['LINE', 'XFMR', 'BREAKER'].includes(c.type)) {
-          if(c.type === 'BREAKER' && c.status === 'OPEN') return; 
-          let x = (c.type === 'BREAKER') ? 0.0001 : Math.max(Number(c.xpu)||0.01, 0.0001);
-          branches.push({ cId: c.id, r1, r2: find(`${c.id}_T2`), x });
+        if(c.type === 'GEN') { nodes[r1].maxGen += Number(c.pMax||0); sysGenCap += Number(c.pMax||0); }
+        if(c.type === 'LOAD') { nodes[r1].pLoad += Number(c.pMW||0); sysLoad += Number(c.pMW||0); }
+      });
+
+      // Treat Wires & Transformers as Branches
+      let branches = [];
+      state.wires.forEach(w => {
+        let r1 = find(w.src), r2 = find(w.tgt);
+        let x = Math.max(Number(w.xpu)||0.01, 0.0001);
+        if(r1 !== r2) branches.push({ id: w.id, r1, r2, x, type: 'WIRE' });
+      });
+      state.components.forEach(c => {
+        if(c.type === 'XFMR') {
+          let r1 = find(`${c.id}_T1`), r2 = find(`${c.id}_T2`);
+          let x = Math.max(Number(c.xpu)||0.01, 0.0001);
+          if(r1 !== r2) branches.push({ id: c.id, r1, r2, x, type: 'XFMR' });
         }
       });
 
-      $('lblGen').textContent = totalGen.toFixed(1) + ' MW';
-      $('lblLoad').textContent = totalLoad.toFixed(1) + ' MW';
-      $('lblLoss').textContent = Math.max(0, (totalGen - totalLoad)).toFixed(1) + ' MW';
+      // Detect Islands & Dispatch
+      let adj = {}; Object.keys(nodes).forEach(k => adj[k] = []);
+      branches.forEach(b => { adj[b.r1].push(b.r2); adj[b.r2].push(b.r1); });
+      
+      let visited = new Set(), islands = [];
+      Object.keys(nodes).forEach(st => {
+        if(!visited.has(st)) {
+          let isl = { nodes: [], load: 0, genCap: 0 };
+          let q = [st]; visited.add(st);
+          while(q.length > 0) {
+            let curr = q.shift(); isl.nodes.push(curr);
+            isl.load += nodes[curr].pLoad; isl.genCap += nodes[curr].maxGen;
+            adj[curr].forEach(n => { if(!visited.has(n)) { visited.add(n); q.push(n); } });
+          }
+          islands.push(isl);
+        }
+      });
 
-      let q = Object.values(nodeMap).filter(n => n.energized);
-      while(q.length > 0) {
-        let curr = q.shift();
-        branches.forEach(br => {
-          if(br.r1 === curr.id && !nodeMap[br.r2].energized) { nodeMap[br.r2].energized = true; q.push(nodeMap[br.r2]); }
-          if(br.r2 === curr.id && !nodeMap[br.r1].energized) { nodeMap[br.r1].energized = true; q.push(nodeMap[br.r1]); }
+      let sysGenAct = 0;
+      islands.forEach(isl => {
+        let ratio = isl.genCap > 0 ? Math.min(1, isl.load / isl.genCap) : 0;
+        isl.nodes.forEach(nid => {
+          let n = nodes[nid];
+          let actGen = n.maxGen * ratio;
+          sysGenAct += actGen;
+          n.pNet = actGen - n.pLoad; // Net injection
         });
-      }
 
-      let activeNodes = Object.values(nodeMap).filter(n => n.energized);
-      if(activeNodes.length > 0) {
-        let slacks = activeNodes.filter(n => n.isSlack);
-        slacks.forEach(s => s.theta = 0);
-        if(slacks.length === 0) activeNodes[0].theta = 0; 
-
-        for(let iter = 0; iter < 100; iter++) {
-          activeNodes.forEach(node => {
-            if(node.isSlack) return; 
-            let sumInvX = 0, sumThetaInvX = 0;
-            branches.forEach(br => {
-              if(br.r1 === node.id || br.r2 === node.id) {
-                let neighbor = nodeMap[br.r1 === node.id ? br.r2 : br.r1];
-                if(neighbor && neighbor.energized) {
-                  let invX = 1.0 / br.x; sumInvX += invX; sumThetaInvX += neighbor.theta * invX;
+        if(isl.genCap > 0) {
+          let slackId = isl.nodes.reduce((a,b) => nodes[a].maxGen > nodes[b].maxGen ? a : b);
+          nodes[slackId].isSlack = true;
+          
+          // Gauss-Seidel
+          let act = isl.nodes.map(id => nodes[id]);
+          for(let iter=0; iter<100; iter++) {
+            let mxD = 0;
+            act.forEach(n => {
+              if(n.isSlack) return;
+              let sumInvX = 0, sumTh = 0;
+              branches.forEach(br => {
+                if(br.r1 === n.id || br.r2 === n.id) {
+                  let nbr = nodes[br.r1 === n.id ? br.r2 : br.r1];
+                  let inv = 1 / br.x;
+                  sumInvX += inv; sumTh += nbr.theta * inv;
                 }
+              });
+              if(sumInvX > 0) {
+                let old = n.theta; n.theta = ((n.pNet/100) + sumTh) / sumInvX;
+                mxD = Math.max(mxD, Math.abs(n.theta - old));
               }
             });
-            if(sumInvX > 0) node.theta = ((node.pNet / 100.0) + sumThetaInvX) / sumInvX;
-          });
+            if(mxD < 1e-5) break;
+          }
         }
-      }
-
-      state.components.forEach(c => { c.pFlow = 0; c.energized = false; });
-      state.buses.forEach(b => b.energized = nodeMap[find(b.id)]?.energized || false);
-
-      branches.forEach(br => {
-        let flowPu = (nodeMap[br.r1].theta - nodeMap[br.r2].theta) / br.x;
-        let comp = getComp(br.cId);
-        if(comp) { comp.pFlow = flowPu * 100.0; comp.energized = true; comp.flowingT1toT2 = flowPu > 0; }
       });
-      state.components.forEach(c => { if(['GEN', 'LOAD'].includes(c.type)) c.energized = nodeMap[find(`${c.id}_T1`)]?.energized || false; });
+
+      // Compute Flows
+      let termTh = {};
+      Object.keys(nodes).forEach(nid => nodes[nid].terms.forEach(t => termTh[t] = nodes[nid].theta));
+
+      state.wires.forEach(w => {
+        w.t1 = termTh[w.src]; w.t2 = termTh[w.tgt];
+        w.energized = w.t1 !== undefined && w.t2 !== undefined;
+        w.pFlow = w.energized ? ((w.t1 - w.t2) / Math.max(Number(w.xpu)||0.01, 0.0001)) * 100 : 0;
+      });
+
+      state.components.forEach(c => {
+        c.energized = termTh[`${c.id}_T1`] !== undefined;
+        if(c.type === 'XFMR' && c.energized) {
+          c.pFlow = ((termTh[`${c.id}_T1`] - termTh[`${c.id}_T2`]) / Math.max(Number(c.xpu)||0.01, 0.0001)) * 100;
+        } else if (c.type === 'GEN') {
+          c.actGen = c.energized ? Number(c.pMax||0) * (islands.find(i=>i.nodes.includes(find(`${c.id}_T1`))).load / Math.max(0.001, islands.find(i=>i.nodes.includes(find(`${c.id}_T1`))).genCap)) : 0;
+          if(c.actGen > c.pMax) c.actGen = c.pMax;
+        }
+      });
+      state.buses.forEach(b => b.energized = termTh[b.id] !== undefined);
+
+      $('lblGenCap').textContent = sysGenCap.toFixed(1) + ' MW';
+      $('lblLoad').textContent = sysLoad.toFixed(1) + ' MW';
+      $('lblGenAct').textContent = sysGenAct.toFixed(1) + ' MW';
+      
+      let defWarn = $('lblDeficit');
+      if(sysLoad > sysGenCap && sysLoad > 0) defWarn.classList.remove('hidden'); else defWarn.classList.add('hidden');
     }
 
     function render() {
       solvePowerFlow();
-      const layers = { wires: $('layer-wires'), flow: $('layer-flow'), comps: $('layer-components'), buses: $('layer-buses'), labels: $('layer-live-labels') };
-      for(let k in layers) layers[k].innerHTML = '';
+      const L = { w: $('layer-wires'), f: $('layer-flow'), wl: $('layer-wire-labels'), c: $('layer-components'), b: $('layer-buses'), lbl: $('layer-labels') };
+      for(let k in L) L[k].innerHTML = '';
 
+      // Render Transmission Wires
       state.wires.forEach(w => {
-        let c = resolveWireCoordinates(w.src, w.tgt);
-        layers.wires.appendChild(createSVG('line', { x1: c.x1, y1: c.y1, x2: c.x2, y2: c.y2, stroke: '#64748b', 'stroke-width': 2.5 }));
-      });
-
-      state.buses.forEach(b => {
-        const isSel = (selectedType === 'BUS' && selectedId === b.id);
-        const w = b.rot === 'H' ? b.len : 12, h = b.rot === 'H' ? 12 : b.len;
-        const color = b.energized ? (V_COLORS[b.kv] || '#888') : '#475569';
+        let p = getWireCoords(w);
+        let isSel = selType === 'WIRE' && selId === w.id;
+        let isOverload = Math.abs(w.pFlow) > Number(w.limit);
         
-        let g = createSVG('g', { class: 'pointer-events-auto cursor-pointer hover:brightness-125 transition-all' });
-        g.addEventListener('pointerdown', e => startDrag(e, 'BUS', b.id));
-
-        g.appendChild(createSVG('rect', { x: b.x - w/2, y: b.y - h/2, width: w, height: h, rx: 3, fill: color, stroke: isSel ? '#ffffff' : 'none', 'stroke-width': 3 }));
+        let gW = createSVG('g', { class: 'cursor-pointer pointer-events-auto group' });
         
-        // Hide small TAP buses if unselected
-        if(b.name === 'TAP' && b.len <= 16 && !isSel) {
-            g.style.opacity = '0.3';
-        } else if (b.len > 16) {
-          let txt = createSVG('text', { x: b.x, y: b.y - h/2 - 6, fill: '#e2e8f0', 'font-size': 11, 'text-anchor': 'middle', class: 'pointer-events-none font-bold' });
-          txt.textContent = b.name; layers.labels.appendChild(txt);
-        }
-        layers.buses.appendChild(g);
-      });
+        // Base wire line (thicker invisible for easy clicking)
+        gW.appendChild(createSVG('line', { x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, stroke: 'transparent', 'stroke-width': 15 }));
+        
+        // Visible Wire
+        let visWire = createSVG('line', { x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, stroke: isSel?'#cbd5e1':(w.energized?'#64748b':'#334155'), 'stroke-width': isSel?4:3 });
+        if(isOverload && w.energized) visWire.setAttribute('class', 'overload');
+        gW.appendChild(visWire);
 
-      state.components.forEach(c => {
-        const isSel = (selectedType === 'COMP' && selectedId === c.id);
-        let gMain = createSVG('g', { transform: `translate(${c.x}, ${c.y})`, class: 'pointer-events-auto cursor-pointer hover:drop-shadow-lg transition-all' });
-        let gRot = createSVG('g', { transform: c.rot === 'V' ? 'rotate(90)' : 'rotate(0)' });
-        gMain.appendChild(gRot);
-        gMain.addEventListener('pointerdown', e => startDrag(e, 'COMP', c.id));
-
-        if(isSel) gRot.appendChild(createSVG('rect', { x: -35, y: -25, width: 70, height: 50, rx: 6, fill: 'none', stroke: '#818cf8', 'stroke-width': 2, 'stroke-dasharray': '4 4' }));
-
-        if (c.type === 'GEN') {
-          gRot.appendChild(createSVG('circle', { cx: 0, cy: 0, r: 16, fill: '#064e3b', stroke: c.energized?'#34d399':'#64748b', 'stroke-width': 2 }));
-          let t = createSVG('text', { x: 0, y: 5, fill: c.energized?'#34d399':'#64748b', 'font-size': 14, 'text-anchor': 'middle', 'font-weight': 'bold' });
-          t.textContent = 'G'; gRot.appendChild(t);
-        }
-        else if (c.type === 'LOAD') { gRot.appendChild(createSVG('polygon', { points: "-14,-14 14,-14 0,14", fill: '#78350f', stroke: c.energized?'#fbbf24':'#64748b', 'stroke-width': 2 })); }
-        else if (c.type === 'LINE') {
-          gRot.appendChild(createSVG('rect', { x: -16, y: -8, width: 32, height: 16, rx: 2, fill: '#1e3a8a', stroke: '#60a5fa', 'stroke-width': 2 }));
-          gRot.appendChild(createSVG('line', { x1: -16, y1: 0, x2: 16, y2: 0, stroke: '#93c5fd', 'stroke-width': 2 }));
-        }
-        else if (c.type === 'XFMR') {
-          gRot.appendChild(createSVG('circle', { cx: -7, cy: 0, r: 11, fill: '#1e293b', stroke: '#fb923c', 'stroke-width': 2 }));
-          gRot.appendChild(createSVG('circle', { cx: 7, cy: 0, r: 11, fill: 'none', stroke: '#fb923c', 'stroke-width': 2 }));
-        }
-        else if (c.type === 'BREAKER') {
-          let isOpen = c.status === 'OPEN';
-          gRot.appendChild(createSVG('rect', { x: -12, y: -12, width: 24, height: 24, rx: 2, fill: isOpen ? '#7f1d1d' : '#14532d', stroke: isOpen ? '#f87171' : '#4ade80', 'stroke-width': 2 }));
-          let t = createSVG('text', { x: 0, y: 4, fill: '#fff', 'font-size': 12, 'text-anchor': 'middle', 'font-weight': 'bold', transform: c.rot==='V'?'rotate(-90)':'rotate(0)' });
-          t.textContent = isOpen ? 'O' : 'C'; gRot.appendChild(t);
+        // Flow particles
+        if(w.energized && Math.abs(w.pFlow) > 0.5 && !isOverload) {
+          let isFwd = w.pFlow > 0;
+          let f = createSVG('line', { x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, stroke: '#38bdf8', 'stroke-width': 3, class: `flow-anim pointer-events-none ${isFwd?'fwd':'rev'}` });
+          f.style.animationDuration = Math.max(0.2, 2 - Math.abs(w.pFlow)*0.005) + 's';
+          L.f.appendChild(f);
         }
 
-        const drawTerm = (x, y) => gRot.appendChild(createSVG('circle', { cx: x, cy: y, r: 4, fill: '#94a3b8' }));
-        if(['GEN', 'LOAD'].includes(c.type)) drawTerm(0, -18);
-        else { drawTerm(-24, 0); drawTerm(24, 0); }
-
-        let lName = createSVG('text', { x: 0, y: c.rot==='V'? 36 : 30, fill: '#cbd5e1', 'font-size': 10, 'text-anchor': 'middle', class: 'font-mono pointer-events-none drop-shadow-md' });
-        lName.textContent = c.name; gMain.appendChild(lName);
-
-        if(c.energized) {
-          let lVal = createSVG('text', { x: 0, y: c.rot==='V'? -28 : -20, fill: '#fff', 'font-size': 11, 'font-weight': 'bold', 'text-anchor': 'middle', class: 'pointer-events-none' });
-          lVal.setAttribute('paint-order', 'stroke'); lVal.setAttribute('stroke', '#020617'); lVal.setAttribute('stroke-width', '3px');
+        // Wire Label (Midpoint badge)
+        if(w.energized || isSel) {
+          let mx = (p.x1 + p.x2)/2, my = (p.y1 + p.y2)/2;
+          let badge = createSVG('rect', { x: mx-24, y: my-9, width: 48, height: 18, rx: 4, fill: isOverload?'#7f1d1d':'#0f172a', stroke: isOverload?'#f87171':'#3b82f6', 'stroke-width':1, class:'pointer-events-none' });
+          let txt = createSVG('text', { x: mx, y: my+3, fill: isOverload?'#fecaca':'#93c5fd', 'font-size': 9, 'font-weight': 'bold', 'text-anchor':'middle', class:'pointer-events-none' });
+          txt.textContent = Math.abs(w.pFlow).toFixed(1) + ' MW';
+          L.wl.appendChild(badge); L.wl.appendChild(txt);
           
-          if(c.type === 'GEN') { lVal.textContent = `+${c.pMW} MW`; lVal.setAttribute('fill', '#4ade80'); }
-          else if(c.type === 'LOAD') { lVal.textContent = `-${c.pMW} MW`; lVal.setAttribute('fill', '#fbbf24'); }
-          else if(['LINE', 'XFMR'].includes(c.type)) {
-            let absFlow = Math.abs(c.pFlow || 0); let overloaded = absFlow > Number(c.limit);
-            lVal.textContent = `${absFlow.toFixed(1)} MW`; lVal.setAttribute('fill', overloaded ? '#f87171' : '#38bdf8');
-            if(overloaded) gRot.appendChild(createSVG('rect', { x: -20, y: -16, width: 40, height: 32, rx:4, fill: 'none', stroke: '#ef4444', 'stroke-width': 3, class: 'overload' }));
-            
-            if(absFlow > 0.1) {
-              let speed = Math.max(0.2, 1.5 - (absFlow / 500)); 
-              let flowLine = createSVG('line', { x1: c.flowingT1toT2 ? -15 : 15, y1: 0, x2: c.flowingT1toT2 ? 15 : -15, y2: 0, stroke: '#ffffff', 'stroke-width': 2, class: 'flow-line pointer-events-none drop-shadow-[0_0_3px_#fff]' });
-              flowLine.style.animationDuration = `${speed}s`; gRot.appendChild(flowLine);
-            }
-          }
-          gMain.appendChild(lVal);
+          let nm = createSVG('text', { x: mx, y: my-12, fill: '#64748b', 'font-size': 9, 'font-weight': 'bold', 'text-anchor':'middle', class:'pointer-events-none' });
+          nm.textContent = w.name; L.wl.appendChild(nm);
         }
-        layers.comps.appendChild(gMain);
+        
+        gW.addEventListener('pointerdown', e => startDrag(e, 'WIRE', w.id));
+        L.w.appendChild(gW);
+      });
+
+      // Render Buses
+      state.buses.forEach(b => {
+        let isSel = selType === 'BUS' && selId === b.id;
+        let w = b.rot === 'H' ? b.len : 12, h = b.rot === 'H' ? 12 : b.len;
+        let col = b.energized ? (V_COLORS[b.kv] || '#94a3b8') : '#334155';
+        
+        let g = createSVG('g', { class: 'pointer-events-auto cursor-pointer hover:brightness-125 transition' });
+        g.addEventListener('pointerdown', e => startDrag(e, 'BUS', b.id));
+        g.appendChild(createSVG('rect', { x: b.x-w/2, y: b.y-h/2, width: w, height: h, rx: 3, fill: col, stroke: isSel?'#fff':'none', 'stroke-width':3 }));
+        
+        if(b.name !== 'TAP' && b.len > 20) {
+          let t = createSVG('text', { x: b.x, y: b.y-h/2-5, fill: '#cbd5e1', 'font-size': 11, 'text-anchor':'middle', class:'font-bold pointer-events-none' });
+          t.textContent = b.name; L.lbl.appendChild(t);
+        }
+        L.b.appendChild(g);
+      });
+
+      // Render Components
+      state.components.forEach(c => {
+        let isSel = selType === 'COMP' && selId === c.id;
+        let gMain = createSVG('g', { transform: `translate(${c.x}, ${c.y})`, class: 'pointer-events-auto cursor-pointer hover:drop-shadow-lg' });
+        gMain.addEventListener('pointerdown', e => startDrag(e, 'COMP', c.id));
+        
+        let gR = createSVG('g', { transform: c.rot==='V' ? 'rotate(90)' : '' });
+        gMain.appendChild(gR);
+
+        if(isSel) gR.appendChild(createSVG('rect', { x: -30, y: -25, width: 60, height: 50, rx: 6, fill: 'none', stroke: '#818cf8', 'stroke-width': 2, 'stroke-dasharray': '4 4' }));
+
+        let strokeCol = c.energized ? '#94a3b8' : '#475569';
+        
+        if(c.type === 'GEN') {
+          strokeCol = c.energized ? '#34d399' : '#475569';
+          gR.appendChild(createSVG('circle', { cx:0, cy:0, r:16, fill:'#064e3b', stroke: strokeCol, 'stroke-width':2 }));
+          let t=createSVG('text', {x:0, y:5, fill:strokeCol, 'font-size':14, 'font-weight':'bold', 'text-anchor':'middle'}); t.textContent='G'; gR.appendChild(t);
+        } else if (c.type === 'LOAD') {
+          strokeCol = c.energized ? '#fbbf24' : '#475569';
+          gR.appendChild(createSVG('polygon', { points: "-14,-14 14,-14 0,14", fill:'#78350f', stroke: strokeCol, 'stroke-width':2 }));
+        } else if (c.type === 'XFMR') {
+          strokeCol = c.energized ? '#fb923c' : '#475569';
+          gR.appendChild(createSVG('circle', { cx:-7, cy:0, r:11, fill:'#1e293b', stroke: strokeCol, 'stroke-width':2 }));
+          gR.appendChild(createSVG('circle', { cx:7, cy:0, r:11, fill:'none', stroke: strokeCol, 'stroke-width':2 }));
+          if(c.energized && Math.abs(c.pFlow) > 1e-4) {
+             let isFwd = c.pFlow > 0;
+             let f = createSVG('line', { x1: -16, y1: 0, x2: 16, y2: 0, stroke: '#fff', 'stroke-width': 2, class: `flow-anim pointer-events-none drop-shadow-[0_0_2px_#fff] ${isFwd?'fwd':'rev'}` });
+             gR.appendChild(f);
+          }
+        } else if (c.type === 'BREAKER') {
+          let isO = c.status === 'OPEN';
+          gR.appendChild(createSVG('rect', { x:-12, y:-12, width:24, height:24, rx:2, fill:isO?'#7f1d1d':'#14532d', stroke:isO?'#f87171':'#4ade80', 'stroke-width':2 }));
+          let t=createSVG('text', {x:0, y:4, fill:'#fff', 'font-size':12, 'font-weight':'bold', 'text-anchor':'middle', transform:c.rot==='V'?'rotate(-90)':''}); 
+          t.textContent=isO?'O':'C'; gR.appendChild(t);
+        }
+
+        const dt = (x,y) => gR.appendChild(createSVG('circle', { cx:x, cy:y, r:3, fill:'#64748b' }));
+        if(['GEN', 'LOAD'].includes(c.type)) dt(0,-18); else { dt(-24,0); dt(24,0); }
+
+        let nameT = createSVG('text', { x:0, y: c.rot==='V'?36:30, fill:'#94a3b8', 'font-size':10, 'text-anchor':'middle', class:'font-mono pointer-events-none' });
+        nameT.textContent = c.name; gMain.appendChild(nameT);
+
+        if(c.energized && ['GEN','LOAD'].includes(c.type)) {
+          let vY = c.rot==='V'? -26 : -18;
+          let valT = createSVG('text', { x:0, y:vY, fill:'#fff', 'font-size':11, 'font-weight':'bold', 'text-anchor':'middle', class:'pointer-events-none' });
+          valT.setAttribute('paint-order', 'stroke'); valT.setAttribute('stroke', '#020617'); valT.setAttribute('stroke-width', '3px');
+          
+          if(c.type === 'GEN') { valT.textContent = `+${(c.actGen||0).toFixed(1)} MW`; valT.setAttribute('fill', '#34d399'); }
+          if(c.type === 'LOAD') { valT.textContent = `-${c.pMW} MW`; valT.setAttribute('fill', '#fbbf24'); }
+          gMain.appendChild(valT);
+        }
+        L.c.appendChild(gMain);
       });
     }
 
-    const container = $('viewportContainer');
+    const cont = $('viewportContainer');
     
-    function setMode(newMode) {
-      mode = newMode; wireSourceTerm = null; snapTarget = null;
-      $('snapIndicator').classList.add('hidden'); $('activeWire').classList.add('hidden');
-      $('btnSelect').className = `px-3 py-1.5 rounded font-medium transition flex items-center gap-1 ${mode==='SELECT' ? 'bg-indigo-600 text-white shadow-lg' : 'border border-slate-600 hover:bg-slate-700 text-slate-300'}`;
-      $('btnWire').className = `px-3 py-1.5 rounded font-medium transition relative flex items-center gap-1 ${mode==='WIRE' ? 'bg-indigo-600 text-white shadow-lg' : 'border border-slate-600 hover:bg-slate-700 text-slate-300'}`;
-      $('wireBadge').style.display = mode==='WIRE' ? 'block' : 'none';
+    function setMode(m) {
+      mode = m; wireSrc = null;
+      $('activeWire').classList.add('hidden');
+      $('btnSelect').className = `px-4 py-2 rounded font-semibold flex items-center gap-1 transition ${mode==='SELECT'?'bg-indigo-600 text-white shadow':'border border-slate-600 text-slate-300 hover:bg-slate-700'}`;
+      $('btnWire').className = `px-4 py-2 rounded font-semibold relative transition ${mode==='WIRE'?'bg-indigo-600 text-white shadow':'border border-slate-600 text-slate-300 hover:bg-slate-700'}`;
+      $('wireBadge').style.display = mode==='WIRE'?'block':'none';
     }
 
-    function spawnComponent(type) {
-      let x = -vp.x / vp.scale + (container.clientWidth / 2);
-      let y = -vp.y / vp.scale + (container.clientHeight / 2);
-      if(type === 'BUS') state.buses.push({ id: genId('B'), name: `Bus ${state.buses.length+1}`, x, y, len: 150, rot: 'H', kv: '230' });
+    window.addEventListener('keydown', e => {
+      if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      if(e.key.toLowerCase() === 'v') setMode('SELECT');
+      if(e.key.toLowerCase() === 'w') setMode('WIRE');
+      if(e.key.toLowerCase() === 'r' && selId) toggleRotation();
+      if(e.key === 'Delete' || e.key === 'Backspace') deleteElem();
+    });
+
+    function spawn(type) {
+      let x = -vp.x/vp.scale + cont.clientWidth/2, y = -vp.y/vp.scale + cont.clientHeight/2;
+      if(type === 'BUS') state.buses.push({ id: genId('B'), name: `BUS ${state.buses.length+1}`, x, y, len: 150, rot: 'H', kv: '230' });
       else {
-        let comp = { id: genId('C'), type, name: `${type} ${state.components.length+1}`, x, y, rot: 'H' };
-        if(type === 'GEN') { comp.pMW = 100; comp.maxMW = 200; }
-        if(type === 'LOAD') { comp.pMW = 50; }
-        if(['LINE', 'XFMR', 'BREAKER'].includes(type)) { comp.xpu = type === 'XFMR' ? 0.05 : 0.1; comp.limit = 500; }
-        if(type === 'BREAKER') comp.status = 'CLOSED';
-        state.components.push(comp);
+        let c = { id: genId('C'), type, name: `${type}_${state.components.length+1}`, x, y, rot: 'H' };
+        if(type === 'GEN') c.pMax = 200;
+        if(type === 'LOAD') c.pMW = 50;
+        if(type === 'XFMR') { c.xpu = 0.05; c.limit = 500; }
+        if(type === 'BREAKER') c.status = 'CLOSED';
+        state.components.push(c);
       }
       setMode('SELECT'); render();
     }
 
-    function handleWiring(type, id, cx, cy) {
-      if(!wireSourceTerm) {
-        if(snapTarget && snapTarget.type === 'term') wireSourceTerm = snapTarget.id;
-        else {
-           let term = getAvailableTerminal(type, id);
-           if(!term) { showToast("No available ports.", "error"); return; }
-           wireSourceTerm = term;
-        }
-      } else {
-        let tgt = null;
-        if(snapTarget) {
-          if(snapTarget.type === 'term') tgt = snapTarget.id;
-          else if (snapTarget.type === 'wire') {
-             // T-Tap Implementation
-             let jId = genId('B');
-             state.buses.push({ id: jId, name: `TAP`, x: snapTarget.x, y: snapTarget.y, len: 14, rot: 'H', kv: '230' }); 
-             let oldWire = snapTarget.wireObj;
-             state.wires = state.wires.filter(w => w.id !== oldWire.id);
-             state.wires.push({ id: genId('W'), src: oldWire.src, tgt: jId }, { id: genId('W'), src: jId, tgt: oldWire.tgt });
-             tgt = jId; showToast("Line Tapped!");
-          }
-        } else tgt = getAvailableTerminal(type, id);
-
-        if(tgt) {
-          if(wireSourceTerm === tgt) { wireSourceTerm = null; $('activeWire').classList.add('hidden'); return; }
-          state.wires.push({ id: genId('W'), src: wireSourceTerm, tgt: tgt });
-          wireSourceTerm = null; $('activeWire').classList.add('hidden'); setMode('SELECT'); render();
-        }
-      }
+    function getFreePort(type, id) {
+      if(type === 'BUS') return id;
+      let used = new Set(); state.wires.forEach(w => { used.add(w.src); used.add(w.tgt); });
+      let c = getC(id);
+      if(['GEN', 'LOAD'].includes(c.type)) return used.has(`${id}_T1`) ? null : `${id}_T1`;
+      if(!used.has(`${id}_T1`)) return `${id}_T1`;
+      if(!used.has(`${id}_T2`)) return `${id}_T2`;
+      return null;
     }
 
     function startDrag(e, type, id) {
       e.stopPropagation(); e.preventDefault();
-      if(mode === 'WIRE') { handleWiring(type, id, e.clientX, e.clientY); return; }
-      if(mode !== 'SELECT') return;
+      if(mode === 'WIRE') {
+        if(type === 'WIRE') return; // Can't start wire on wire
+        if(!wireSrc) {
+          let p = getFreePort(type, id);
+          if(p) wireSrc = p; else showToast("No open ports", true);
+        } else {
+          let t = getFreePort(type, id);
+          if(t && t !== wireSrc) { 
+            state.wires.push({ id: genId('W'), name: `TL-${state.wires.length+1}`, src: wireSrc, tgt: t, xpu: 0.02, limit: 300 }); 
+            setMode('SELECT'); render(); 
+          } else wireSrc = null;
+        }
+        return;
+      }
       
-      let el = type === 'BUS' ? getBus(id) : getComp(id);
-      let rect = container.getBoundingClientRect();
-      let mx = (e.clientX - rect.left - vp.x) / vp.scale;
-      let my = (e.clientY - rect.top - vp.y) / vp.scale;
-      dragElement = { obj: el, offsetX: el.x - mx, offsetY: el.y - my };
-      selectElement(type, id);
-      container.setPointerCapture(e.pointerId);
+      selectEl(type, id);
+      if(type === 'WIRE') return; // Don't drag wires
+      
+      let el = type === 'BUS' ? getB(id) : getC(id);
+      let r = cont.getBoundingClientRect();
+      dragEl = { el, ox: el.x - ((e.clientX - r.left - vp.x) / vp.scale), oy: el.y - ((e.clientY - r.top - vp.y) / vp.scale) };
+      cont.setPointerCapture(e.pointerId);
     }
 
-    container.addEventListener('pointerdown', e => {
+    cont.addEventListener('pointerdown', e => {
       if(e.target.tagName === 'svg' || e.target.id === 'viewportContainer') {
         if(mode === 'SELECT') {
-          vp.isDragging = true; vp.startX = e.clientX - vp.x; vp.startY = e.clientY - vp.y;
-          selectedId = null; selectedType = null; populateInspector(); render();
-          container.setPointerCapture(e.pointerId);
-        } else if (mode === 'WIRE' && snapTarget && snapTarget.type === 'wire' && wireSourceTerm) {
-          handleWiring(null, null, e.clientX, e.clientY);
-        } else if (mode === 'WIRE' && wireSourceTerm) {
-           wireSourceTerm = null; $('activeWire').classList.add('hidden');
-        }
+          vp.isDrag = true; vp.startX = e.clientX - vp.x; vp.startY = e.clientY - vp.y;
+          selectEl(null, null); cont.setPointerCapture(e.pointerId);
+        } else if (mode === 'WIRE' && wireSrc) { wireSrc = null; $('activeWire').classList.add('hidden'); }
       }
     });
 
     window.addEventListener('pointermove', e => {
-      let rect = container.getBoundingClientRect();
-      let mx = (e.clientX - rect.left - vp.x) / vp.scale, my = (e.clientY - rect.top - vp.y) / vp.scale;
+      let r = cont.getBoundingClientRect();
+      let mx = (e.clientX - r.left - vp.x) / vp.scale, my = (e.clientY - r.top - vp.y) / vp.scale;
 
-      if(vp.isDragging) {
+      if(vp.isDrag) {
         vp.x = e.clientX - vp.startX; vp.y = e.clientY - vp.startY;
-        $('transformGroup').setAttribute('transform', `translate(${vp.x}, ${vp.y}) scale(${vp.scale})`);
-      } else if (dragElement) {
-        dragElement.obj.x = mx + dragElement.offsetX; dragElement.obj.y = my + dragElement.offsetY; render();
+        $('transformGroup').setAttribute('transform', `translate(${vp.x},${vp.y}) scale(${vp.scale})`);
+      } else if (dragEl) {
+        dragEl.el.x = mx + dragEl.ox; dragEl.el.y = my + dragEl.oy; render();
       }
 
-      if(mode === 'WIRE') {
-        snapTarget = findSnapTarget(mx, my);
-        let ind = $('snapIndicator');
-        if(snapTarget) { ind.setAttribute('cx', snapTarget.x); ind.setAttribute('cy', snapTarget.y); ind.setAttribute('stroke', snapTarget.type === 'wire' ? '#f59e0b' : '#22c55e'); ind.classList.remove('hidden'); }
-        else ind.classList.add('hidden');
-        if(wireSourceTerm) {
-          let p1 = getRawTerminalPos(wireSourceTerm), aw = $('activeWire');
-          aw.setAttribute('x1', p1.isBus ? getBus(p1.busId).x : p1.x); aw.setAttribute('y1', p1.isBus ? getBus(p1.busId).y : p1.y);
-          aw.setAttribute('x2', snapTarget ? snapTarget.x : mx); aw.setAttribute('y2', snapTarget ? snapTarget.y : my); aw.classList.remove('hidden');
-        }
+      if(mode === 'WIRE' && wireSrc) {
+        let p1 = getRawPos(wireSrc), aw = $('activeWire');
+        aw.setAttribute('x1', p1.isBus ? getB(p1.id).x : p1.x); aw.setAttribute('y1', p1.isBus ? getB(p1.id).y : p1.y);
+        aw.setAttribute('x2', mx); aw.setAttribute('y2', my); aw.classList.remove('hidden');
       }
     });
 
-    window.addEventListener('pointerup', e => { 
-      vp.isDragging = false; dragElement = null; 
-      try { container.releasePointerCapture(e.pointerId); } catch(err) {} 
-    });
+    window.addEventListener('pointerup', e => { vp.isDrag = false; dragEl = null; try{cont.releasePointerCapture(e.pointerId)}catch(e){} });
 
-    container.addEventListener('wheel', e => {
-      e.preventDefault();
-      let oldScale = vp.scale;
-      vp.scale = Math.min(Math.max(0.2, vp.scale + (e.deltaY < 0 ? 0.05 : -0.05)), 3);
-      let rect = container.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top;
-      vp.x = mx - (mx - vp.x) * (vp.scale / oldScale); vp.y = my - (my - vp.y) * (vp.scale / oldScale);
-      $('transformGroup').setAttribute('transform', `translate(${vp.x}, ${vp.y}) scale(${vp.scale})`);
+    cont.addEventListener('wheel', e => {
+      e.preventDefault(); let os = vp.scale;
+      vp.scale = Math.min(Math.max(0.2, vp.scale + (e.deltaY<0 ? 0.05 : -0.05)), 3);
+      let r = cont.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      vp.x = mx - (mx - vp.x) * (vp.scale / os); vp.y = my - (my - vp.y) * (vp.scale / os);
+      $('transformGroup').setAttribute('transform', `translate(${vp.x},${vp.y}) scale(${vp.scale})`);
     }, { passive: false });
 
-    function selectElement(type, id) {
-      selectedType = type; selectedId = id;
-      populateInspector(); render();
-    }
-
-    function populateInspector() {
-      if(!selectedId) {
+    function selectEl(type, id) {
+      selType = type; selId = id;
+      if(!id) {
+        $('inspector-none').classList.remove('hidden'); $('inspector-form').classList.add('hidden');
         $('insType').textContent = 'NONE';
-        $('inspector-none').classList.remove('hidden');
-        $('inspector-form').classList.add('hidden');
-        return;
-      }
-
-      $('inspector-none').classList.add('hidden');
-      $('inspector-form').classList.remove('hidden');
-      
-      let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
-      $('insType').textContent = selectedType === 'BUS' ? 'BUSBAR' : el.type;
-      
-      const fields = ['wrap-kv', 'wrap-len', 'wrap-pmw', 'wrap-maxmw', 'wrap-xpu', 'wrap-limit', 'wrap-rotate', 'wrap-breaker'];
-      fields.forEach(f => $(f).classList.add('hidden'));
-
-      $('prop-name').value = el.name || '';
-
-      if (selectedType === 'BUS') {
-        $('wrap-kv').classList.remove('hidden'); $('prop-kv').value = el.kv;
-        $('wrap-len').classList.remove('hidden'); $('prop-len').value = el.len;
-        $('wrap-rotate').classList.remove('hidden'); $('txt-rotate').textContent = el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕';
       } else {
-        if (['BREAKER', 'LINE', 'XFMR'].includes(el.type)) {
-           $('wrap-rotate').classList.remove('hidden'); $('txt-rotate').textContent = el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕';
-        }
-        if (el.type === 'GEN') {
-          $('wrap-pmw').classList.remove('hidden'); $('lbl-pmw').textContent = "Active Power (MW)"; $('prop-pmw').value = el.pMW;
-          $('wrap-maxmw').classList.remove('hidden'); $('prop-maxmw').value = el.maxMW;
-        } else if (el.type === 'LOAD') {
-          $('wrap-pmw').classList.remove('hidden'); $('lbl-pmw').textContent = "Demand (MW)"; $('prop-pmw').value = el.pMW;
-        } else if (['LINE', 'XFMR'].includes(el.type)) {
-          $('wrap-xpu').classList.remove('hidden'); $('prop-xpu').value = el.xpu;
+        $('inspector-none').classList.add('hidden'); $('inspector-form').classList.remove('hidden');
+        let el = type === 'BUS' ? getB(id) : type === 'WIRE' ? getW(id) : getC(id);
+        $('insType').textContent = type === 'BUS' ? 'BUSBAR' : type === 'WIRE' ? 'TRANS. LINE' : el.type;
+        ['wrap-kv','wrap-len','wrap-cap','wrap-pmw','wrap-xpu','wrap-limit','wrap-rotate','wrap-breaker'].forEach(w => $(w).classList.add('hidden'));
+        
+        $('prop-name').value = el.name;
+        if(type === 'BUS') {
+          $('wrap-kv').classList.remove('hidden'); $('prop-kv').value = el.kv;
+          $('wrap-len').classList.remove('hidden'); $('prop-len').value = el.len;
+          $('wrap-rotate').classList.remove('hidden'); $('txt-rotate').textContent = el.rot==='H'?'Horizontal':'Vertical';
+        } else if (type === 'WIRE') {
+          $('wrap-xpu').classList.remove('hidden'); $('prop-xpu').value = el.xpu; 
           $('wrap-limit').classList.remove('hidden'); $('prop-limit').value = el.limit;
-        } else if (el.type === 'BREAKER') {
-          $('wrap-breaker').classList.remove('hidden');
-          updateBreakerButton(el.status);
+        } else {
+          if(['XFMR','BREAKER'].includes(el.type)) { $('wrap-rotate').classList.remove('hidden'); $('txt-rotate').textContent = el.rot==='H'?'Horizontal':'Vertical'; }
+          if(el.type === 'GEN') { $('wrap-cap').classList.remove('hidden'); $('prop-cap').value = el.pMax; }
+          if(el.type === 'LOAD') { $('wrap-pmw').classList.remove('hidden'); $('prop-pmw').value = el.pMW; }
+          if(el.type === 'XFMR') { $('wrap-xpu').classList.remove('hidden'); $('prop-xpu').value = el.xpu; $('wrap-limit').classList.remove('hidden'); $('prop-limit').value = el.limit; }
+          if(el.type === 'BREAKER') { $('wrap-breaker').classList.remove('hidden'); updBrkBtn(el.status); }
         }
       }
+      render();
     }
 
-    function updateParam(key, val) {
-      if(!selectedId) return;
-      let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
-      if(el) { el[key] = val; render(); } // Instantly trigger solvePowerFlow via render
-    }
-
-    function toggleRotate() {
-      let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
-      if(el) { el.rot = el.rot === 'H' ? 'V' : 'H'; $('txt-rotate').textContent = el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕'; render(); }
-    }
-
-    function toggleBreaker() {
-      let el = getComp(selectedId);
-      if(el && el.type === 'BREAKER') { el.status = el.status === 'CLOSED' ? 'OPEN' : 'CLOSED'; updateBreakerButton(el.status); render(); }
+    function updateProp(key, val) {
+      if(!selId) return;
+      let el = selType === 'BUS' ? getB(selId) : selType === 'WIRE' ? getW(selId) : getC(selId);
+      if(el) { el[key] = val; render(); }
     }
     
-    function updateBreakerButton(status) {
-      const btn = $('btn-breaker');
-      if (status === 'CLOSED') {
-         btn.className = "w-full py-2 font-bold rounded border shadow-sm transition tracking-wider text-xs bg-red-900/30 text-red-400 border-red-800";
-         btn.textContent = "TRIP (OPEN)";
-      } else {
-         btn.className = "w-full py-2 font-bold rounded border shadow-sm transition tracking-wider text-xs bg-green-900/30 text-green-400 border-green-800";
-         btn.textContent = "CLOSE BREAKER";
-      }
-    }
+    function toggleRotation() { let el=selType==='BUS'?getB(selId):getC(selId); if(el){el.rot=el.rot==='H'?'V':'H'; selectEl(selType, selId);} }
+    function toggleBreaker() { let el=getC(selId); if(el && el.type==='BREAKER'){ el.status=el.status==='CLOSED'?'OPEN':'CLOSED'; updBrkBtn(el.status); render(); } }
+    function updBrkBtn(st) { let b=$('btn-breaker'); b.textContent = st==='CLOSED'?'TRIP (OPEN)':'CLOSE BREAKER'; b.className = `w-full py-2 font-bold rounded border shadow-sm transition tracking-widest text-[10px] ${st==='CLOSED'?'bg-red-900/40 text-red-400 border-red-800':'bg-emerald-900/40 text-emerald-400 border-emerald-800'}`; }
 
-    window.duplicateElement = function() {
-      if(!selectedId) return;
-      let original = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
-      if(!original) return;
-      let duplicate = JSON.parse(JSON.stringify(original));
-      duplicate.id = genId(selectedType === 'BUS' ? 'B' : 'C');
-      duplicate.x = original.x + 30; duplicate.y = original.y + 30; duplicate.name = original.name + ' (Copy)';
-      if(selectedType === 'BUS') state.buses.push(duplicate); else state.components.push(duplicate);
-      showToast("Element Duplicated"); selectElement(selectedType, duplicate.id);
-    }
-
-    window.deleteElement = function() {
-      if(!selectedId) return;
-      state.wires = state.wires.filter(w => !w.src.startsWith(selectedId) && !w.tgt.startsWith(selectedId));
-      if(selectedType === 'BUS') state.buses = state.buses.filter(b => b.id !== selectedId);
-      else state.components = state.components.filter(c => c.id !== selectedId);
-      selectedId = null; populateInspector(); render();
+    window.duplicateElem = function() {
+      if(!selId || selType === 'WIRE') { showToast("Cannot duplicate wires directly.", true); return; }
+      let orig = selType === 'BUS' ? getB(selId) : getC(selId);
+      let dup = JSON.parse(JSON.stringify(orig));
+      dup.id = genId(selType==='BUS'?'B':'C'); dup.x+=40; dup.y+=40; dup.name += ' (Copy)';
+      if(selType==='BUS') state.buses.push(dup); else state.components.push(dup);
+      selectEl(selType, dup.id);
     };
 
-    window.addEventListener('keydown', e => {
-      if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
-      if(e.key.toLowerCase() === 'r' && selectedId) toggleRotate();
-      else if (e.key.toLowerCase() === 'v') setMode('SELECT');
-      else if (e.key.toLowerCase() === 'w') setMode('WIRE');
-      else if (e.key === 'Delete' || e.key === 'Backspace') deleteElement();
-    });
+    window.deleteElem = function() {
+      if(!selId) return;
+      if(selType === 'WIRE') { state.wires = state.wires.filter(w => w.id !== selId); }
+      else {
+        state.wires = state.wires.filter(w => !w.src.startsWith(selId) && !w.tgt.startsWith(selId));
+        if(selType === 'BUS') state.buses = state.buses.filter(b => b.id !== selId);
+        else state.components = state.components.filter(c => c.id !== selId);
+      }
+      selectEl(null, null);
+    };
 
-    function exportData() {
-      const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
-      a.download = 'grid_model.json'; a.click(); showToast("Exported Successfully!");
-    }
-    function importData(e) {
-      const file = e.target.files[0]; if(!file) return;
-      const reader = new FileReader();
-      reader.onload = e => {
-        try { 
-          let loaded = JSON.parse(e.target.result); 
-          if(loaded.buses && loaded.components && loaded.wires) {
-            state = loaded; vp.x = 50; vp.y = 50; vp.scale = 1;
-            $('transformGroup').setAttribute('transform', `translate(${vp.x}, ${vp.y}) scale(${vp.scale})`);
-            selectedId = null; populateInspector(); render(); showToast("Model Loaded!");
-          } else throw new Error();
-        } catch(err) { showToast("Invalid JSON Schema.", "error"); }
-      };
-      reader.readAsText(file); e.target.value = '';
-    }
-    function clearCanvas() { if(confirm('Clear the entire network?')) { state = {buses:[], components:[], wires:[]}; selectedId=null; populateInspector(); render(); } }
+    window.exportData = function() {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob); const a = document.createElement('a');
+      a.href = url; a.download = 'market_model.json'; document.body.appendChild(a); a.click();
+      setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 0);
+      showToast("Model Exported.");
+    };
 
+    window.importData = function(e) {
+      let file = e.target.files[0]; if(!file) return;
+      let fr = new FileReader();
+      fr.onload = ev => { try { let res = JSON.parse(ev.target.result); if(res.buses) { state=res; selectEl(null,null); showToast("Model Loaded!"); } } catch(err) { showToast("Invalid File", true); } };
+      fr.readAsText(file); e.target.value = '';
+    };
+    window.clearCanvas = function() { if(confirm("Clear everything?")) { state = {buses:[], components:[], wires:[]}; selectEl(null,null); } };
+
+    // Boot Load Model
     window.onload = () => {
+      vp.x = window.innerWidth/2 - 250; vp.y = window.innerHeight/2 - 200;
+      $('transformGroup').setAttribute('transform', `translate(${vp.x},${vp.y}) scale(1)`);
+      
       state.buses = [
-        { id: 'B1', name: 'MAIN BUS 1', x: 200, y: 150, len: 400, rot: 'H', kv: '500' },
-        { id: 'B2', name: 'MAIN BUS 2', x: 200, y: 450, len: 400, rot: 'H', kv: '500' },
-        { id: 'B3', name: 'SUB 230kV', x: 700, y: 300, len: 200, rot: 'V', kv: '230' }
+        {id:'B1', name:'BUS 1 (230kV)', x:100, y:150, len:200, rot:'V', kv:'230'},
+        {id:'B2', name:'BUS 2 (138kV)', x:400, y:150, len:200, rot:'V', kv:'138'}
       ];
       state.components = [
-        { id: 'CB1', type: 'BREAKER', name: 'TIE 1', x: 100, y: 225, status: 'CLOSED', rot: 'V' },
-        { id: 'CB2', type: 'BREAKER', name: 'TIE 2', x: 100, y: 300, status: 'CLOSED', rot: 'V' },
-        { id: 'CB3', type: 'BREAKER', name: 'TIE 3', x: 100, y: 375, status: 'CLOSED', rot: 'V' },
-        { id: 'G1', type: 'GEN', name: 'UNIT_01', x: 200, y: 300, pMW: 600, maxMW: 800, rot: 'H' },
-        { id: 'X1', type: 'XFMR', name: 'T_500_230', x: 300, y: 300, xpu: 0.05, limit: 1000, rot: 'H' },
-        { id: 'L1', type: 'LINE', name: 'TL_230_01', x: 500, y: 300, xpu: 0.05, limit: 800, rot: 'H' },
-        { id: 'D1', type: 'LOAD', name: 'DIST_A', x: 800, y: 300, pMW: 450, rot: 'H' }
+        {id:'G1', type:'GEN', name:'PLANT A', x:0, y:150, rot:'H', pMax:250},
+        {id:'X1', type:'XFMR', name:'TR_01', x:250, y:100, rot:'H', xpu:0.05, limit:300},
+        {id:'LD1', type:'LOAD', name:'CITY D', x:500, y:150, rot:'H', pMW:280} // 280 > 250 to trigger deficit warning
       ];
       state.wires = [
-        { id: 'W1', src: 'B1', tgt: 'CB1_T1' }, { id: 'W2', src: 'CB1_T2', tgt: 'CB2_T1' },
-        { id: 'W3', src: 'CB2_T2', tgt: 'CB3_T1' }, { id: 'W4', src: 'CB3_T2', tgt: 'B2' },
-        { id: 'W5', src: 'G1_T1', tgt: 'CB1_T2' }, { id: 'W6', src: 'X1_T1', tgt: 'CB2_T2' }, 
-        { id: 'W7', src: 'X1_T2', tgt: 'L1_T1' }, { id: 'W8', src: 'L1_T2', tgt: 'B3' },
-        { id: 'W9', src: 'B3', tgt: 'D1_T1' }
+        {id:'W1', name:'TL-GEN', src:'G1_T1', tgt:'B1', xpu:0.01, limit: 300}, 
+        {id:'W2', name:'TL-XFMR-PRI', src:'B1', tgt:'X1_T1', xpu:0.01, limit: 300},
+        {id:'W3', name:'TL-XFMR-SEC', src:'X1_T2', tgt:'B2', xpu:0.01, limit: 300}, 
+        {id:'W4', name:'TL-MAIN', src:'B1', tgt:'B2', xpu:0.1, limit: 120}, // Direct line, gets overloaded
+        {id:'W6', name:'TL-LOAD', src:'B2', tgt:'LD1_T1', xpu:0.01, limit: 300}
       ];
       render();
     };
