@@ -22,6 +22,8 @@
         .btn-success:hover { background: #047857; color: white; }
         .btn-warning { background: #9a3412; color: #ffedd5; border-color: #c2410c; }
         .btn-warning:hover { background: #c2410c; color: white; }
+        .btn-primary { background: #1d4ed8; color: white; border-color: #2563eb; }
+        .btn-primary:hover { background: #2563eb; }
 
         /* Main Workspace */
         .workspace { display: flex; flex: 1; width: 100%; height: calc(100% - 48px); position: relative; overflow: hidden; }
@@ -81,7 +83,7 @@
     <header>
         <div class="logo-area">
             <span>⚡ RTO JAVASCRIPT KCL NETWORK SOLVER</span>
-            <span class="logo-badge">KCL v6.0</span>
+            <span class="logo-badge">FINAL v7.0</span>
         </div>
         <div class="header-tools">
             <button class="btn active" id="btn-select" title="Select & Move (V)">
@@ -93,9 +95,15 @@
                 Wire Tool
             </button>
             <div style="width: 1px; height: 20px; background: #374151; margin: 0 4px;"></div>
-            <button class="btn btn-success" id="btn-export" title="Export Model JSON">Export JSON</button>
-            <button class="btn" id="btn-import" title="Import Model JSON">Import JSON</button>
-            <button class="btn btn-warning" id="btn-clear" title="Clear Canvas">Clear Grid</button>
+            
+            <button class="btn btn-primary" id="btn-inject" title="Inject Real-time Data JSON (Array with 'name', 'mw', 'status')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Live Data
+            </button>
+            
+            <button class="btn btn-success" id="btn-export" title="Export Model Schema JSON">Export</button>
+            <button class="btn" id="btn-import" title="Import Model Schema JSON">Import</button>
+            <button class="btn btn-warning" id="btn-clear" title="Clear Canvas">Clear</button>
         </div>
     </header>
 
@@ -103,7 +111,7 @@
     <div class="workspace">
         <!-- Left Sidebar: Palette & Telemetry -->
         <div class="sidebar-left">
-            <div class="panel-section-title">Grid Elements Palette (Tap/Click to Add)</div>
+            <div class="panel-section-title">Grid Elements Palette</div>
             <div class="palette-grid">
                 <div class="palette-item" draggable="true" data-type="bus">
                     <div class="palette-icon"><svg width="24" height="24" viewBox="0 0 24 24"><rect x="2" y="10" width="20" height="4" rx="2" fill="#ef4444"/></svg></div>
@@ -180,10 +188,11 @@
     <div class="row"><span>Status:</span> <span class="val" id="tt-status">-</span></div>
 </div>
 
-<!-- Hidden File Input for Import -->
+<!-- Hidden File Inputs -->
 <input type="file" id="import-file" style="display: none;" accept=".json">
+<input type="file" id="inject-file" style="display: none;" accept=".json">
 
-<!-- Export/Import Modal -->
+<!-- Export Modal -->
 <div class="modal-overlay" id="json-modal">
     <div class="modal">
         <div class="modal-header">
@@ -202,7 +211,7 @@
 
 <script>
 /**
- * RTO JavaScript KCL Network Solver v6.0
+ * RTO JavaScript KCL Network Solver v7.0
  */
 const VoltageColors = {
     "500 kV": "#3b82f6",
@@ -222,17 +231,17 @@ class NetworkModel {
 
     loadSample() {
         this.nodes = [
-            { id: "b1", type: "bus", name: "CORELLA 230kV", x: 250, y: 150, width: 180, height: 16, voltage: "230 kV", orientation: "H" },
+            { id: "b1", type: "bus", name: "CORELLA 230kV", x: 250, y: 150, width: 220, height: 16, voltage: "230 kV", orientation: "H" },
             { id: "b2", type: "bus", name: "UBAY 138kV", x: 550, y: 150, width: 160, height: 16, voltage: "138 kV", orientation: "H" },
             { id: "b3", type: "bus", name: "TAPAL 69kV", x: 550, y: 320, width: 160, height: 16, voltage: "69 kV", orientation: "H" },
             
-            { id: "g1", type: "generator", name: "07LOBOC_G01", x: 180, y: 260, mw: 45, maxMw: 50, cost: 24.5, status: "closed" },
-            { id: "g2", type: "generator", name: "07TAPLPB4", x: 500, y: 440, mw: 30, maxMw: 40, cost: 32.0, status: "closed" },
+            { id: "g1", type: "generator", name: "07LOBOC_G01", x: 180, y: 260, mw: 45, maxMw: 50, status: "closed" },
+            { id: "g2", type: "generator", name: "07TAPLPB4", x: 500, y: 440, mw: 30, maxMw: 40, status: "closed" },
             
             { id: "l1", type: "load", name: "MARIBOJOC LOAD", x: 320, y: 260, mw: 35, status: "closed" },
             { id: "l2", type: "load", name: "UBAY INDUSTRIAL", x: 620, y: 440, mw: 25, status: "closed" },
             
-            { id: "cb1", type: "breaker", name: "CB-CORELLA-1", x: 250, y: 210, status: "closed", orientation: "V" },
+            { id: "cb1", type: "breaker", name: "CB-CORELLA-1", x: 180, y: 210, status: "closed", orientation: "V" },
             { id: "tr1", type: "transformer", name: "TR_138_69", x: 550, y: 235, reactance: 0.08, ratingMVA: 100, status: "closed", orientation: "V" }
         ];
 
@@ -273,7 +282,7 @@ class SLDApp {
         this.canvas = document.getElementById('sld-canvas');
         this.ctx = this.canvas.getContext('2d');
         
-        this.mode = 'select'; // 'select' | 'wire'
+        this.mode = 'select'; 
         this.selectedElement = null;
         this.selectedWire = null;
         
@@ -311,7 +320,6 @@ class SLDApp {
                 const wy = (this.canvas.height / 2 - this.pan.y) / this.zoom;
                 this.addElement(type, wx, wy);
             });
-
             item.addEventListener('dragstart', e => {
                 e.dataTransfer.setData('text/plain', type);
             });
@@ -332,6 +340,8 @@ class SLDApp {
         document.getElementById('btn-wire').addEventListener('click', () => this.setMode('wire'));
         document.getElementById('btn-export').addEventListener('click', () => this.openModal('export'));
         document.getElementById('btn-import').addEventListener('click', () => document.getElementById('import-file').click());
+        document.getElementById('btn-inject').addEventListener('click', () => document.getElementById('inject-file').click());
+        
         document.getElementById('btn-clear').addEventListener('click', () => {
             if (confirm("Clear entire model?")) {
                 this.model.nodes = [];
@@ -354,6 +364,44 @@ class SLDApp {
                     this.updateInspector();
                 } else {
                     alert("Invalid JSON file format.");
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        });
+
+        document.getElementById('inject-file').addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    let updated = 0;
+                    if (Array.isArray(data)) {
+                        data.forEach(item => {
+                            let node = this.model.nodes.find(n => n.name === item.name || n.id === item.id);
+                            if (node) {
+                                if (item.mw !== undefined) node.mw = parseFloat(item.mw);
+                                if (item.status !== undefined) node.status = item.status;
+                                updated++;
+                            }
+                        });
+                    } else {
+                        for (let key in data) {
+                            let node = this.model.nodes.find(n => n.name === key || n.id === key);
+                            if (node) {
+                                if (data[key].mw !== undefined) node.mw = parseFloat(data[key].mw);
+                                if (data[key].status !== undefined) node.status = data[key].status;
+                                updated++;
+                            }
+                        }
+                    }
+                    this.runPowerFlow();
+                    this.updateInspector();
+                    alert(`Successfully applied live data to ${updated} elements!`);
+                } catch (err) {
+                    alert("Invalid JSON format for data injection.");
                 }
             };
             reader.readAsText(file);
@@ -425,7 +473,6 @@ class SLDApp {
         } else if (type === 'generator') {
             newNode.mw = 25;
             newNode.maxMw = 50;
-            newNode.cost = 30;
         } else if (type === 'load') {
             newNode.mw = 20;
         } else if (type === 'transformer') {
@@ -476,8 +523,16 @@ class SLDApp {
             const n2 = this.model.nodes.find(n => n.id === w.to);
             if (!n1 || !n2) continue;
             
-            const dist = this.distToSegment({x: wx, y: wy}, {x: n1.x, y: n1.y}, {x: n2.x, y: n2.y});
-            if (dist < 8) return w;
+            // Approximate hit detection along the Manhattan routing path
+            let p1 = this.getConnectionPoint(n1, n2);
+            let p2 = this.getConnectionPoint(n2, n1);
+            const midX = (p1.x + p2.x) / 2;
+
+            const d1 = this.distToSegment({x: wx, y: wy}, {x: p1.x, y: p1.y}, {x: midX, y: p1.y});
+            const d2 = this.distToSegment({x: wx, y: wy}, {x: midX, y: p1.y}, {x: midX, y: p2.y});
+            const d3 = this.distToSegment({x: wx, y: wy}, {x: midX, y: p2.y}, {x: p2.x, y: p2.y});
+            
+            if (d1 < 8 || d2 < 8 || d3 < 8) return w;
         }
         return null;
     }
@@ -488,6 +543,23 @@ class SLDApp {
         let t = ((p.x - a.x)*(b.x - a.x) + (p.y - a.y)*(b.y - a.y)) / l2;
         t = Math.max(0, Math.min(1, t));
         return Math.hypot(p.x - (a.x + t*(b.x - a.x)), p.y - (a.y + t*(b.y - a.y)));
+    }
+
+    // NEW: Dynamics orthographic connection snapping for buses
+    getConnectionPoint(node, otherNode) {
+        let p = { x: node.x, y: node.y };
+        if (node.type === 'bus') {
+            let w = node.width || 140; 
+            let isH = node.orientation !== 'V'; // default H
+            if (isH) {
+                // Project X coordinate onto bus bounds
+                p.x = Math.max(node.x - w/2 + 8, Math.min(node.x + w/2 - 8, otherNode.x));
+            } else {
+                // Project Y coordinate onto bus bounds
+                p.y = Math.max(node.y - w/2 + 8, Math.min(node.y + w/2 - 8, otherNode.y));
+            }
+        }
+        return p;
     }
 
     onPointerDown(e) {
@@ -650,15 +722,13 @@ class SLDApp {
         let globalTotalGen = 0;
         let globalTotalLoad = 0;
 
-        // Reset
         this.model.wires.forEach(w => { w.flow = 0; w.loading = 0; w.direction = 1; });
         let nodeMap = {};
         this.model.nodes.forEach(n => {
             nodeMap[n.id] = n;
-            n.displayMw = 0; // Prepare for real balanced output
+            n.displayMw = 0; 
         });
 
-        // 1. Trace active valid topology paths
         let activeWires = this.model.wires.filter(w => {
             if (w.status !== 'closed') return false;
             let n1 = nodeMap[w.from];
@@ -678,7 +748,6 @@ class SLDApp {
         let unvisited = new Set(this.model.nodes.map(n => n.id));
         let islands = [];
 
-        // Identify electrical islands
         while (unvisited.size > 0) {
             let start = unvisited.values().next().value;
             let comp = [];
@@ -699,7 +768,6 @@ class SLDApp {
             islands.push(comp);
         }
 
-        // 2. Solve each island with Full Nodal KCL Admittance Matrix
         islands.forEach(comp => {
             let gens = comp.filter(n => n.type === 'generator' && n.status === 'closed');
             let loads = comp.filter(n => n.type === 'load' && n.status === 'closed');
@@ -710,7 +778,6 @@ class SLDApp {
             globalTotalGen += totalG;
             globalTotalLoad += totalL;
 
-            // Balance supply & demand in the island
             let balancedP = Math.min(totalG, totalL);
 
             let P_inj = {};
@@ -728,7 +795,6 @@ class SLDApp {
                 l.displayMw = actual;
             });
 
-            // If there's more than 1 node, build & solve the network!
             if (comp.length > 1) {
                 let N = comp.length;
                 let B = Array(N).fill(0).map(() => Array(N).fill(0));
@@ -739,7 +805,6 @@ class SLDApp {
                 let islandNodeIds = new Set(comp.map(n => n.id));
                 let islandWires = activeWires.filter(w => islandNodeIds.has(w.from) && islandNodeIds.has(w.to));
 
-                // Populate DC Admittance Matrix (B)
                 islandWires.forEach(w => {
                     let i = comp.findIndex(n => n.id === w.from);
                     let j = comp.findIndex(n => n.id === w.to);
@@ -747,7 +812,6 @@ class SLDApp {
                     let n2 = comp[j];
                     
                     let x = Math.max(0.001, (w.reactance || 0.03));
-                    // Combine equipment reactance directly into the connecting branches
                     if (n1.type === 'transformer') x += (n1.reactance || 0) / 2;
                     if (n2.type === 'transformer') x += (n2.reactance || 0) / 2;
 
@@ -761,7 +825,6 @@ class SLDApp {
                 let theta = Array(N).fill(0);
                 let nSub = N - 1;
                 
-                // Solve Voltage Angles (Gaussian Elimination with Slack Bus 0)
                 if (nSub > 0) {
                     let B_sub = Array(nSub).fill(0).map(() => Array(nSub).fill(0));
                     let P_sub = Array(nSub).fill(0);
@@ -771,7 +834,6 @@ class SLDApp {
                         for (let j = 0; j < nSub; j++) {
                             B_sub[i][j] = B[i + 1][j + 1];
                         }
-                        // Diagonal regularization for isolated sub-graphs
                         B_sub[i][i] += 1e-4; 
                     }
 
@@ -782,7 +844,6 @@ class SLDApp {
                 let thetaMap = {};
                 comp.forEach((n, i) => thetaMap[n.id] = theta[i]);
 
-                // Distribute Flow to UI based on Theta Differential
                 islandWires.forEach(w => {
                     let thA = thetaMap[w.from];
                     let thB = thetaMap[w.to];
@@ -802,7 +863,6 @@ class SLDApp {
             }
         });
 
-        // 3. UI Telemetry Updates
         const balance = globalTotalGen - globalTotalLoad;
         document.getElementById('sys-gen').innerText = globalTotalGen.toFixed(1) + ' MW';
         document.getElementById('sys-load').innerText = globalTotalLoad.toFixed(1) + ' MW';
@@ -854,8 +914,8 @@ class SLDApp {
                 `;
             } else if (el.type === 'generator') {
                 html += `
-                    <div class="form-group"><label>Max Capacity (MW)</label><input type="number" class="form-control" id="insp-mw" value="${el.mw || 0}"></div>
-                    <div class="form-group"><label>Offer Price ($/MWh)</label><input type="number" class="form-control" id="insp-cost" value="${el.cost || 30}"></div>
+                    <div class="form-group"><label>Generation (MW)</label><input type="number" class="form-control" id="insp-mw" value="${el.mw || 0}"></div>
+                    <div class="form-group"><label>Max Capacity (MW)</label><input type="number" class="form-control" id="insp-maxmw" value="${el.maxMw || 50}"></div>
                 `;
             } else if (el.type === 'load') {
                 html += `
@@ -913,7 +973,7 @@ class SLDApp {
         bindInput('insp-voltage', 'voltage');
         bindInput('insp-width', 'width', true);
         bindInput('insp-mw', 'mw', true);
-        bindInput('insp-cost', 'cost', true);
+        bindInput('insp-maxmw', 'maxMw', true);
         bindInput('insp-loadmw', 'mw', true);
         bindInput('insp-x', 'reactance', true);
         bindInput('insp-mva', 'ratingMVA', true);
@@ -966,12 +1026,16 @@ class SLDApp {
             const isSelected = this.selectedWire && this.selectedWire.id === w.id;
             const isOverloaded = (w.loading || 0) > 100;
             
+            // Dynamic orthogonal snapping points
+            let p1 = this.getConnectionPoint(n1, n2);
+            let p2 = this.getConnectionPoint(n2, n1);
+
             ctx.beginPath();
-            ctx.moveTo(n1.x, n1.y);
-            const midX = (n1.x + n2.x) / 2;
-            ctx.lineTo(midX, n1.y);
-            ctx.lineTo(midX, n2.y);
-            ctx.lineTo(n2.x, n2.y);
+            ctx.moveTo(p1.x, p1.y);
+            const midX = (p1.x + p2.x) / 2;
+            ctx.lineTo(midX, p1.y);
+            ctx.lineTo(midX, p2.y);
+            ctx.lineTo(p2.x, p2.y);
 
             ctx.lineWidth = isSelected ? 4 : 2;
             ctx.strokeStyle = w.status === 'open' ? '#4b5563' : (isOverloaded ? '#f87171' : '#60a5fa');
@@ -980,7 +1044,6 @@ class SLDApp {
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Accurately direct animation towards correct potential based on matrix theta sign
             if (w.status === 'closed' && (w.flow || 0) > 0) {
                 const particleCount = 3;
                 const dir = w.direction || 1; 
@@ -990,16 +1053,16 @@ class SLDApp {
                     let px, py;
                     if (t < 0.5) {
                         const st = t * 2;
-                        px = n1.x + (midX - n1.x) * st;
-                        py = n1.y;
+                        px = p1.x + (midX - p1.x) * st;
+                        py = p1.y;
                     } else if (t < 0.75) {
                         const st = (t - 0.5) * 4;
                         px = midX;
-                        py = n1.y + (n2.y - n1.y) * st;
+                        py = p1.y + (p2.y - p1.y) * st;
                     } else {
                         const st = (t - 0.75) * 4;
-                        px = midX + (n2.x - midX) * st;
-                        py = n2.y;
+                        px = midX + (p2.x - midX) * st;
+                        py = p2.y;
                     }
 
                     ctx.fillStyle = isOverloaded ? '#f87171' : '#34d399';
@@ -1010,7 +1073,7 @@ class SLDApp {
             }
 
             const labelX = midX;
-            const labelY = (n1.y + n2.y) / 2;
+            const labelY = (p1.y + p2.y) / 2;
             ctx.fillStyle = 'rgba(17, 24, 39, 0.85)';
             ctx.strokeStyle = isOverloaded ? '#f87171' : '#374151';
             ctx.lineWidth = 1;
@@ -1080,7 +1143,6 @@ class SLDApp {
                 ctx.font = '10px sans-serif';
                 ctx.fillText(n.name, 0, 28);
                 
-                // Show real dispatched generation MW versus Max Capacity
                 let currentOutput = (n.displayMw !== undefined) ? n.displayMw : (n.mw || 0);
                 ctx.fillText(`${currentOutput.toFixed(1)} / ${n.mw || 0} MW`, 0, 40);
 
@@ -1106,7 +1168,6 @@ class SLDApp {
                 ctx.font = '10px sans-serif';
                 ctx.fillText(n.name, 0, 28);
                 
-                // Show actual load delivered (in case of load shedding)
                 let actualLoad = (n.displayMw !== undefined) ? n.displayMw : (n.mw || 0);
                 ctx.fillText(`${actualLoad.toFixed(1)} MW`, 0, 40);
 
@@ -1173,7 +1234,6 @@ class SLDApp {
     }
 }
 
-// Custom Gaussian elimination math solver for B * theta = P matrices
 function GaussianElimination(A, b) {
     let n = b.length;
     for (let i = 0; i < n; i++) {
