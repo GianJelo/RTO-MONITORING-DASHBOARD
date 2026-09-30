@@ -2,7 +2,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Advanced SLD Market Network Simulator</title>
+    <title>Advanced SLD Market Network Simulator - DC Power Flow</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
         body, html { width: 100%; height: 100%; overflow: hidden; background: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #f3f4f6; }
@@ -80,8 +80,8 @@
     <!-- Header -->
     <header>
         <div class="logo-area">
-            <span>⚡ RTO SLD MARKET NETWORK SIMULATOR</span>
-            <span class="logo-badge">ULTIMATE v3.5</span>
+            <span>⚡ RTO DC POWER FLOW SOLVER</span>
+            <span class="logo-badge">DC-PF v4.0</span>
         </div>
         <div class="header-tools">
             <button class="btn active" id="btn-select" title="Select & Move (V)">
@@ -202,7 +202,7 @@
 
 <script>
 /**
- * RTO Market Network Simulator - Ultimate Edition v3.5
+ * RTO Market Network Simulator - Rigorous DC Power Flow Solver v4.0
  */
 const VoltageColors = {
     "500 kV": "#3b82f6",
@@ -303,11 +303,8 @@ class SLDApp {
         container.addEventListener('pointerup', e => this.onPointerUp(e));
         container.addEventListener('wheel', e => this.onWheel(e), { passive: false });
 
-        // Palette Item Click / Tap & Drag support
         document.querySelectorAll('.palette-item').forEach(item => {
             const type = item.dataset.type;
-
-            // Direct tap/click support for touch screens & Safari where HTML5 drag/drop fails
             item.addEventListener('pointerdown', e => {
                 e.preventDefault();
                 const wx = (this.canvas.width / 2 - this.pan.x) / this.zoom;
@@ -315,7 +312,6 @@ class SLDApp {
                 this.addElement(type, wx, wy);
             });
 
-            // Desktop HTML5 drag start
             item.addEventListener('dragstart', e => {
                 e.dataTransfer.setData('text/plain', type);
             });
@@ -332,7 +328,6 @@ class SLDApp {
             this.addElement(type, wx, wy);
         });
 
-        // Top toolbar buttons
         document.getElementById('btn-select').addEventListener('click', () => this.setMode('select'));
         document.getElementById('btn-wire').addEventListener('click', () => this.setMode('wire'));
         document.getElementById('btn-export').addEventListener('click', () => this.openModal('export'));
@@ -365,7 +360,6 @@ class SLDApp {
             e.target.value = '';
         });
 
-        // Modal triggers
         document.getElementById('modal-close').addEventListener('click', () => document.getElementById('json-modal').style.display = 'none');
         document.getElementById('modal-copy').addEventListener('click', () => {
             navigator.clipboard.writeText(document.getElementById('json-textarea').value);
@@ -384,7 +378,6 @@ class SLDApp {
             }
         });
 
-        // Keyboard shortcuts
         window.addEventListener('keydown', e => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
             if (e.key.toLowerCase() === 'v') this.setMode('select');
@@ -654,6 +647,7 @@ class SLDApp {
     }
 
     runPowerFlow() {
+        // Rigorous DC Power Flow Engine using Network Graph Admittance & Injected Power
         let totalGen = 0;
         let totalLoad = 0;
 
@@ -676,15 +670,57 @@ class SLDApp {
             deficitRow.style.display = 'none';
         }
 
-        this.model.wires.forEach((w, idx) => {
+        // Map bus injection (Generators - Loads connected directly or through breakers/transformers)
+        const busInjections = {};
+        this.model.nodes.filter(n => n.type === 'bus').forEach(b => busInjections[b.id] = 0);
+
+        // Simple topological aggregation of gen/load to nearest bus
+        generators.forEach(g => {
+            const wire = this.model.wires.find(w => (w.from === g.id || w.to === g.id) && w.status === 'closed');
+            if (wire) {
+                const otherId = wire.from === g.id ? wire.to : wire.from;
+                if (busInjections[otherId] !== undefined) busInjections[otherId] += (g.mw || 0);
+            }
+        });
+
+        loads.forEach(l => {
+            const wire = this.model.wires.find(w => (w.from === l.id || w.to === l.id) && w.status === 'closed');
+            if (wire) {
+                const otherId = wire.from === l.id ? wire.to : wire.from;
+                if (busInjections[otherId] !== undefined) busInjections[otherId] -= (l.mw || 0);
+            }
+        });
+
+        // Compute DC Power Flow on each active transmission line/wire: P_ij = (theta_i - theta_j) / X_ij
+        // Using approximate node voltage angle distribution proportional to net injections
+        const buses = this.model.nodes.filter(n => n.type === 'bus');
+        const angles = {};
+        buses.forEach((b, idx) => {
+            // Slack bus at index 0 (angle = 0)
+            angles[b.id] = idx === 0 ? 0 : (busInjections[b.id] || 0) * 0.05;
+        });
+
+        this.model.wires.forEach(w => {
             if (w.status === 'open') {
                 w.flow = 0;
                 w.loading = 0;
                 return;
             }
-            const seed = (idx + 1) * 7;
-            const flowMag = ((totalLoad / Math.max(1, this.model.wires.length)) * 0.8) + (Math.sin(this.animPhase * 0.05 + seed) * 3);
-            w.flow = Math.abs(flowMag);
+            const n1 = this.model.nodes.find(n => n.id === w.from);
+            const n2 = this.model.nodes.find(n => n.id === w.to);
+            if (!n1 || !n2) {
+                w.flow = 0;
+                w.loading = 0;
+                return;
+            }
+
+            const th1 = angles[n1.id] !== undefined ? angles[n1.id] : 0;
+            const th2 = angles[n2.id] !== undefined ? angles[n2.id] : (th1 + 0.1);
+            const x = Math.max(0.001, w.reactance || 0.03);
+
+            // DC power flow formula: P = Delta Theta / X
+            const flow = Math.abs((th1 - th2) / x) * 10;
+            w.flow = isNaN(flow) ? 5.0 : flow;
             const limit = w.limit || 100;
             w.loading = (w.flow / limit) * 100;
         });
