@@ -2,7 +2,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Advanced SLD Market Network Simulator - Refined Nodal DC Power Flow</title>
+    <title>Advanced SLD Market Network Simulator - JS KCL Solver</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
         body, html { width: 100%; height: 100%; overflow: hidden; background: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #f3f4f6; }
@@ -80,8 +80,8 @@
     <!-- Header -->
     <header>
         <div class="logo-area">
-            <span>⚡ RTO NODAL DC POWER FLOW SOLVER</span>
-            <span class="logo-badge">NODAL v5.1</span>
+            <span>⚡ RTO JAVASCRIPT KCL NETWORK SOLVER</span>
+            <span class="logo-badge">KCL v6.0</span>
         </div>
         <div class="header-tools">
             <button class="btn active" id="btn-select" title="Select & Move (V)">
@@ -202,7 +202,7 @@
 
 <script>
 /**
- * RTO Nodal DC Power Flow Solver v5.1
+ * RTO JavaScript KCL Network Solver v6.0
  */
 const VoltageColors = {
     "500 kV": "#3b82f6",
@@ -647,159 +647,174 @@ class SLDApp {
     }
 
     runPowerFlow() {
-        let totalGen = 0;
-        let totalLoad = 0;
+        let globalTotalGen = 0;
+        let globalTotalLoad = 0;
 
-        const generators = this.model.nodes.filter(n => n.type === 'generator' && n.status === 'closed');
-        const loads = this.model.nodes.filter(n => n.type === 'load' && n.status === 'closed');
+        // Reset
+        this.model.wires.forEach(w => { w.flow = 0; w.loading = 0; w.direction = 1; });
+        let nodeMap = {};
+        this.model.nodes.forEach(n => {
+            nodeMap[n.id] = n;
+            n.displayMw = 0; // Prepare for real balanced output
+        });
 
-        generators.forEach(g => totalGen += (g.mw || 0));
-        loads.forEach(l => totalLoad += (l.mw || 0));
+        // 1. Trace active valid topology paths
+        let activeWires = this.model.wires.filter(w => {
+            if (w.status !== 'closed') return false;
+            let n1 = nodeMap[w.from];
+            let n2 = nodeMap[w.to];
+            if (!n1 || !n2) return false;
+            if (n1.status === 'open' || n2.status === 'open') return false;
+            return true;
+        });
 
-        const balance = totalGen - totalLoad;
-        document.getElementById('sys-gen').innerText = totalGen.toFixed(1) + ' MW';
-        document.getElementById('sys-load').innerText = totalLoad.toFixed(1) + ' MW';
+        let adj = {};
+        this.model.nodes.forEach(n => adj[n.id] = []);
+        activeWires.forEach(w => {
+            adj[w.from].push({ to: w.to, wire: w });
+            adj[w.to].push({ to: w.from, wire: w });
+        });
+
+        let unvisited = new Set(this.model.nodes.map(n => n.id));
+        let islands = [];
+
+        // Identify electrical islands
+        while (unvisited.size > 0) {
+            let start = unvisited.values().next().value;
+            let comp = [];
+            let q = [start];
+            unvisited.delete(start);
+
+            while (q.length > 0) {
+                let curr = q.shift();
+                comp.push(nodeMap[curr]);
+
+                for (let edge of adj[curr]) {
+                    if (unvisited.has(edge.to)) {
+                        unvisited.delete(edge.to);
+                        q.push(edge.to);
+                    }
+                }
+            }
+            islands.push(comp);
+        }
+
+        // 2. Solve each island with Full Nodal KCL Admittance Matrix
+        islands.forEach(comp => {
+            let gens = comp.filter(n => n.type === 'generator' && n.status === 'closed');
+            let loads = comp.filter(n => n.type === 'load' && n.status === 'closed');
+
+            let totalG = gens.reduce((s, g) => s + (g.mw || 0), 0);
+            let totalL = loads.reduce((s, l) => s + (l.mw || 0), 0);
+
+            globalTotalGen += totalG;
+            globalTotalLoad += totalL;
+
+            // Balance supply & demand in the island
+            let balancedP = Math.min(totalG, totalL);
+
+            let P_inj = {};
+            comp.forEach(n => P_inj[n.id] = 0);
+
+            gens.forEach(g => {
+                let actual = totalG > 0 ? (g.mw * balancedP / totalG) : 0;
+                P_inj[g.id] = actual;
+                g.displayMw = actual;
+            });
+
+            loads.forEach(l => {
+                let actual = totalL > 0 ? (l.mw * balancedP / totalL) : 0;
+                P_inj[l.id] = -actual;
+                l.displayMw = actual;
+            });
+
+            // If there's more than 1 node, build & solve the network!
+            if (comp.length > 1) {
+                let N = comp.length;
+                let B = Array(N).fill(0).map(() => Array(N).fill(0));
+                let P_vec = Array(N).fill(0);
+
+                comp.forEach((n, i) => P_vec[i] = P_inj[n.id]);
+
+                let islandNodeIds = new Set(comp.map(n => n.id));
+                let islandWires = activeWires.filter(w => islandNodeIds.has(w.from) && islandNodeIds.has(w.to));
+
+                // Populate DC Admittance Matrix (B)
+                islandWires.forEach(w => {
+                    let i = comp.findIndex(n => n.id === w.from);
+                    let j = comp.findIndex(n => n.id === w.to);
+                    let n1 = comp[i];
+                    let n2 = comp[j];
+                    
+                    let x = Math.max(0.001, (w.reactance || 0.03));
+                    // Combine equipment reactance directly into the connecting branches
+                    if (n1.type === 'transformer') x += (n1.reactance || 0) / 2;
+                    if (n2.type === 'transformer') x += (n2.reactance || 0) / 2;
+
+                    let b = 1.0 / x;
+                    B[i][j] -= b;
+                    B[j][i] -= b;
+                    B[i][i] += b;
+                    B[j][j] += b;
+                });
+
+                let theta = Array(N).fill(0);
+                let nSub = N - 1;
+                
+                // Solve Voltage Angles (Gaussian Elimination with Slack Bus 0)
+                if (nSub > 0) {
+                    let B_sub = Array(nSub).fill(0).map(() => Array(nSub).fill(0));
+                    let P_sub = Array(nSub).fill(0);
+
+                    for (let i = 0; i < nSub; i++) {
+                        P_sub[i] = P_vec[i + 1];
+                        for (let j = 0; j < nSub; j++) {
+                            B_sub[i][j] = B[i + 1][j + 1];
+                        }
+                        // Diagonal regularization for isolated sub-graphs
+                        B_sub[i][i] += 1e-4; 
+                    }
+
+                    let theta_sub = GaussianElimination(B_sub, P_sub);
+                    for (let i = 0; i < nSub; i++) theta[i + 1] = theta_sub[i];
+                }
+
+                let thetaMap = {};
+                comp.forEach((n, i) => thetaMap[n.id] = theta[i]);
+
+                // Distribute Flow to UI based on Theta Differential
+                islandWires.forEach(w => {
+                    let thA = thetaMap[w.from];
+                    let thB = thetaMap[w.to];
+                    let n1 = nodeMap[w.from];
+                    let n2 = nodeMap[w.to];
+                    
+                    let x = Math.max(0.001, (w.reactance || 0.03));
+                    if (n1.type === 'transformer') x += (n1.reactance || 0) / 2;
+                    if (n2.type === 'transformer') x += (n2.reactance || 0) / 2;
+
+                    let flow_A_to_B = (thA - thB) / x;
+                    
+                    w.flow = Math.abs(flow_A_to_B);
+                    w.direction = flow_A_to_B >= 0 ? 1 : -1;
+                    w.loading = (w.flow / (w.limit || 100)) * 100;
+                });
+            }
+        });
+
+        // 3. UI Telemetry Updates
+        const balance = globalTotalGen - globalTotalLoad;
+        document.getElementById('sys-gen').innerText = globalTotalGen.toFixed(1) + ' MW';
+        document.getElementById('sys-load').innerText = globalTotalLoad.toFixed(1) + ' MW';
         document.getElementById('sys-balance').innerText = (balance >= 0 ? '+' : '') + balance.toFixed(1) + ' MW';
 
         const deficitRow = document.getElementById('deficit-row');
-        if (totalGen < totalLoad) {
+        if (globalTotalGen < globalTotalLoad) {
             deficitRow.style.display = 'flex';
-            document.getElementById('sys-deficit').innerText = `DEFICIT: ${(totalLoad - totalGen).toFixed(1)} MW`;
+            document.getElementById('sys-deficit').innerText = `DEFICIT: ${(globalTotalLoad - globalTotalGen).toFixed(1)} MW`;
         } else {
             deficitRow.style.display = 'none';
         }
-
-        // --- REFINED NODAL DC POWER FLOW SOLVER ---
-        const nodeMap = {};
-        this.model.nodes.forEach(n => nodeMap[n.id] = n);
-
-        const findRootBus = (startId) => {
-            let visited = new Set();
-            let queue = [startId];
-            while (queue.length > 0) {
-                let curr = queue.shift();
-                if (visited.has(curr)) continue;
-                visited.add(curr);
-                let node = nodeMap[curr];
-                if (!node) continue;
-                if (node.type === 'bus') return node.id;
-
-                this.model.wires.forEach(w => {
-                    if (w.status === 'closed') {
-                        if (w.from === curr && !visited.has(w.to)) queue.push(w.to);
-                        if (w.to === curr && !visited.has(w.from)) queue.push(w.from);
-                    }
-                });
-            }
-            return null;
-        };
-
-        const busP = {};
-        this.model.nodes.filter(n => n.type === 'bus').forEach(b => busP[b.id] = 0);
-
-        generators.forEach(g => {
-            if (g.status !== 'closed') return;
-            const targetBusId = findRootBus(g.id);
-            if (targetBusId && busP[targetBusId] !== undefined) {
-                busP[targetBusId] += (g.mw || 0);
-            }
-        });
-
-        loads.forEach(l => {
-            if (l.status !== 'closed') return;
-            const targetBusId = findRootBus(l.id);
-            if (targetBusId && busP[targetBusId] !== undefined) {
-                busP[targetBusId] -= (l.mw || 0);
-            }
-        });
-
-        const buses = this.model.nodes.filter(n => n.type === 'bus');
-        const busIds = buses.map(b => b.id);
-        const numBuses = busIds.length;
-
-        if (numBuses === 0) return;
-
-        let B = Array(numBuses).fill(0).map(() => Array(numBuses).fill(0));
-        let P = busIds.map(id => busP[id] || 0);
-
-        this.model.wires.forEach(w => {
-            if (w.status === 'open') return;
-            const busA = findRootBus(w.from);
-            const busB = findRootBus(w.to);
-            if (busA && busB && busA !== busB) {
-                const idxA = busIds.indexOf(busA);
-                const idxB = busIds.indexOf(busB);
-                if (idxA !== -1 && idxB !== -1) {
-                    const x = Math.max(0.001, w.reactance || 0.03);
-                    const b_branch = 1.0 / x;
-                    B[idxA][idxB] -= b_branch;
-                    B[idxB][idxA] -= b_branch;
-                    B[idxA][idxA] += b_branch;
-                    B[idxB][idxB] += b_branch;
-                }
-            }
-        });
-
-        let theta = Array(numBuses).fill(0);
-        if (numBuses > 1) {
-            const nSub = numBuses - 1;
-            let B_sub = Array(nSub).fill(0).map(() => Array(nSub).fill(0));
-            let P_sub = Array(nSub).fill(0);
-
-            for (let i = 0; i < nSub; i++) {
-                P_sub[i] = P[i + 1];
-                for (let j = 0; j < nSub; j++) {
-                    B_sub[i][j] = B[i + 1][j + 1];
-                }
-                B_sub[i][i] += 1e-4; // Regularization
-            }
-
-            let theta_sub = GaussianElimination(B_sub, P_sub);
-            for (let i = 0; i < nSub; i++) {
-                theta[i + 1] = theta_sub[i];
-            }
-        }
-
-        const busTheta = {};
-        busIds.forEach((id, idx) => busTheta[id] = theta[idx]);
-
-        this.model.wires.forEach(w => {
-            if (w.status === 'open') {
-                w.flow = 0;
-                w.loading = 0;
-                w.direction = 1;
-                return;
-            }
-            const busA = findRootBus(w.from);
-            const busB = findRootBus(w.to);
-
-            if (busA && busB && busA !== busB) {
-                const thA = busTheta[busA] || 0;
-                const thB = busTheta[busB] || 0;
-                const x = Math.max(0.001, w.reactance || 0.03);
-                
-                // Signed power flow from node 'from' to 'to'
-                const rawFlow = (busTheta[findRootBus(w.from) || ''] || 0) - (busTheta[findRootBus(w.to) || ''] || 0);
-                const signedFlow = rawFlow / x;
-                
-                w.flow = Math.abs(signedFlow);
-                w.direction = signedFlow >= 0 ? 1 : -1;
-            } else {
-                const connectedNodeId = busA || busB;
-                const otherId = (w.from === connectedNodeId) ? w.to : w.from;
-                const otherNode = nodeMap[otherId];
-                if (otherNode && (otherNode.type === 'generator' || otherNode.type === 'load')) {
-                    w.flow = otherNode.mw || 0;
-                    w.direction = otherNode.type === 'generator' ? 1 : -1;
-                } else {
-                    w.flow = 5.0;
-                    w.direction = 1;
-                }
-            }
-
-            const limit = w.limit || 100;
-            w.loading = (w.flow / limit) * 100;
-        });
     }
 
     updateInspector() {
@@ -839,8 +854,7 @@ class SLDApp {
                 `;
             } else if (el.type === 'generator') {
                 html += `
-                    <div class="form-group"><label>Active Generation (MW)</label><input type="number" class="form-control" id="insp-mw" value="${el.mw || 0}"></div>
-                    <div class="form-group"><label>Max Capacity (MW)</label><input type="number" class="form-control" id="insp-maxmw" value="${el.maxMw || 50}"></div>
+                    <div class="form-group"><label>Max Capacity (MW)</label><input type="number" class="form-control" id="insp-mw" value="${el.mw || 0}"></div>
                     <div class="form-group"><label>Offer Price ($/MWh)</label><input type="number" class="form-control" id="insp-cost" value="${el.cost || 30}"></div>
                 `;
             } else if (el.type === 'load') {
@@ -899,7 +913,6 @@ class SLDApp {
         bindInput('insp-voltage', 'voltage');
         bindInput('insp-width', 'width', true);
         bindInput('insp-mw', 'mw', true);
-        bindInput('insp-maxmw', 'maxMw', true);
         bindInput('insp-cost', 'cost', true);
         bindInput('insp-loadmw', 'mw', true);
         bindInput('insp-x', 'reactance', true);
@@ -967,12 +980,11 @@ class SLDApp {
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Animated flow particles flowing in correct direction
+            // Accurately direct animation towards correct potential based on matrix theta sign
             if (w.status === 'closed' && (w.flow || 0) > 0) {
                 const particleCount = 3;
-                const dir = w.direction || 1;
+                const dir = w.direction || 1; 
                 for (let i = 0; i < particleCount; i++) {
-                    // Adjust phase offset based on direction
                     const tVal = dir > 0 ? (this.animPhase * 0.015 + i / particleCount) : (1.0 - ((this.animPhase * 0.015 + i / particleCount) % 1));
                     const t = tVal % 1;
                     let px, py;
@@ -1067,7 +1079,10 @@ class SLDApp {
                 ctx.fillStyle = '#f3f4f6';
                 ctx.font = '10px sans-serif';
                 ctx.fillText(n.name, 0, 28);
-                ctx.fillText(`${n.mw || 0} MW`, 0, 40);
+                
+                // Show real dispatched generation MW versus Max Capacity
+                let currentOutput = (n.displayMw !== undefined) ? n.displayMw : (n.mw || 0);
+                ctx.fillText(`${currentOutput.toFixed(1)} / ${n.mw || 0} MW`, 0, 40);
 
             } else if (n.type === 'load') {
                 ctx.fillStyle = '#111827';
@@ -1090,7 +1105,10 @@ class SLDApp {
                 ctx.fillStyle = '#f3f4f6';
                 ctx.font = '10px sans-serif';
                 ctx.fillText(n.name, 0, 28);
-                ctx.fillText(`${n.mw || 0} MW`, 0, 40);
+                
+                // Show actual load delivered (in case of load shedding)
+                let actualLoad = (n.displayMw !== undefined) ? n.displayMw : (n.mw || 0);
+                ctx.fillText(`${actualLoad.toFixed(1)} MW`, 0, 40);
 
             } else if (n.type === 'transformer') {
                 ctx.fillStyle = '#111827';
@@ -1155,6 +1173,7 @@ class SLDApp {
     }
 }
 
+// Custom Gaussian elimination math solver for B * theta = P matrices
 function GaussianElimination(A, b) {
     let n = b.length;
     for (let i = 0; i < n; i++) {
