@@ -83,7 +83,7 @@
     <header>
         <div class="logo-area">
             <span>⚡ RTO JAVASCRIPT KCL NETWORK SOLVER</span>
-            <span class="logo-badge">FINAL v7.0</span>
+            <span class="logo-badge">FINAL v8.0</span>
         </div>
         <div class="header-tools">
             <button class="btn active" id="btn-select" title="Select & Move (V)">
@@ -96,9 +96,9 @@
             </button>
             <div style="width: 1px; height: 20px; background: #374151; margin: 0 4px;"></div>
             
-            <button class="btn btn-primary" id="btn-inject" title="Inject Real-time Data JSON (Array with 'name', 'mw', 'status')">
+            <button class="btn btn-primary" id="btn-inject" title="Inject Real-time Data (CSV or JSON)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                Live Data
+                Live Data (CSV)
             </button>
             
             <button class="btn btn-success" id="btn-export" title="Export Model Schema JSON">Export</button>
@@ -109,7 +109,6 @@
 
     <!-- Workspace -->
     <div class="workspace">
-        <!-- Left Sidebar: Palette & Telemetry -->
         <div class="sidebar-left">
             <div class="panel-section-title">Grid Elements Palette</div>
             <div class="palette-grid">
@@ -156,7 +155,6 @@
             </div>
         </div>
 
-        <!-- Canvas Area -->
         <div class="canvas-container" id="canvas-container">
             <canvas id="sld-canvas"></canvas>
             <div class="canvas-hud">
@@ -168,7 +166,6 @@
             </div>
         </div>
 
-        <!-- Right Sidebar: Inspector -->
         <div class="sidebar-right">
             <div class="panel-section-title">Inspector</div>
             <div class="inspector-content" id="inspector-content">
@@ -190,7 +187,7 @@
 
 <!-- Hidden File Inputs -->
 <input type="file" id="import-file" style="display: none;" accept=".json">
-<input type="file" id="inject-file" style="display: none;" accept=".json">
+<input type="file" id="inject-file" style="display: none;" accept=".json, .csv">
 
 <!-- Export Modal -->
 <div class="modal-overlay" id="json-modal">
@@ -211,7 +208,7 @@
 
 <script>
 /**
- * RTO JavaScript KCL Network Solver v7.0
+ * RTO JavaScript KCL Network Solver v8.0 - Perfected Line Dynamics & Data
  */
 const VoltageColors = {
     "500 kV": "#3b82f6",
@@ -248,9 +245,10 @@ class NetworkModel {
         this.wires = [
             { id: "w1", from: "g1", to: "cb1", name: "Gen Lead 1", reactance: 0.02, limit: 60, status: "closed" },
             { id: "w2", from: "cb1", to: "b1", name: "Bus Drop 1", reactance: 0.01, limit: 100, status: "closed" },
-            { id: "w3", from: "b1", to: "b2", name: "TL-CORELLA-UBAY", reactance: 0.05, rating: 120, limit: 100, status: "closed" },
-            { id: "w4", from: "b2", to: "tr1", name: "XFR Tap", reactance: 0.01, rating: 100, limit: 100, status: "closed" },
-            { id: "w5", from: "tr1", to: "b3", name: "Secondary Tap", reactance: 0.01, rating: 100, limit: 100, status: "closed" },
+            { id: "w3", from: "b1", to: "b2", name: "TL-CORELLA-UBAY 1", reactance: 0.05, limit: 100, status: "closed" },
+            { id: "w3_2", from: "b1", to: "b2", name: "TL-CORELLA-UBAY 2", reactance: 0.05, limit: 100, status: "closed" }, // Demo Parallel line
+            { id: "w4", from: "b2", to: "tr1", name: "XFR Tap", reactance: 0.01, limit: 100, status: "closed" },
+            { id: "w5", from: "tr1", to: "b3", name: "Secondary Tap", reactance: 0.01, limit: 100, status: "closed" },
             { id: "w6", from: "b3", to: "g2", name: "Tapal Gen Feed", reactance: 0.02, limit: 50, status: "closed" },
             { id: "w7", from: "b1", to: "l1", name: "Load Feeder 1", reactance: 0.02, limit: 60, status: "closed" },
             { id: "w8", from: "b3", to: "l2", name: "Load Feeder 2", reactance: 0.02, limit: 50, status: "closed" }
@@ -370,39 +368,69 @@ class SLDApp {
             e.target.value = '';
         });
 
+        // LIVE DATA INJECTOR (CSV & JSON)
         document.getElementById('inject-file').addEventListener('change', e => {
             const file = e.target.files[0];
             if (!file) return;
+            const ext = file.name.split('.').pop().toLowerCase();
             const reader = new FileReader();
             reader.onload = (evt) => {
-                try {
-                    const data = JSON.parse(evt.target.result);
-                    let updated = 0;
-                    if (Array.isArray(data)) {
-                        data.forEach(item => {
-                            let node = this.model.nodes.find(n => n.name === item.name || n.id === item.id);
-                            if (node) {
-                                if (item.mw !== undefined) node.mw = parseFloat(item.mw);
-                                if (item.status !== undefined) node.status = item.status;
-                                updated++;
+                let updated = 0;
+                if (ext === 'csv') {
+                    const lines = evt.target.result.split(/\r?\n/).filter(l => l.trim().length > 0);
+                    if (lines.length > 0) {
+                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                        const nameIdx = headers.indexOf('name');
+                        const valIdx = headers.indexOf('value');
+                        if (nameIdx > -1 && valIdx > -1) {
+                            for (let i = 1; i < lines.length; i++) {
+                                const cols = lines[i].split(',').map(c => c.trim());
+                                if (cols.length <= Math.max(nameIdx, valIdx)) continue;
+                                const name = cols[nameIdx];
+                                const val = parseFloat(cols[valIdx]);
+                                
+                                let node = this.model.nodes.find(n => n.name === name);
+                                if (node && !isNaN(val)) {
+                                    node.mw = val;
+                                    updated++;
+                                }
                             }
-                        });
-                    } else {
-                        for (let key in data) {
-                            let node = this.model.nodes.find(n => n.name === key || n.id === key);
-                            if (node) {
-                                if (data[key].mw !== undefined) node.mw = parseFloat(data[key].mw);
-                                if (data[key].status !== undefined) node.status = data[key].status;
-                                updated++;
-                            }
+                            alert(`Successfully injected CSV live data to ${updated} elements!`);
+                        } else {
+                            alert("Error: CSV must contain exact headers: 'Name' and 'Value'.");
                         }
                     }
-                    this.runPowerFlow();
-                    this.updateInspector();
-                    alert(`Successfully applied live data to ${updated} elements!`);
-                } catch (err) {
-                    alert("Invalid JSON format for data injection.");
+                } else {
+                    try {
+                        const data = JSON.parse(evt.target.result);
+                        if (Array.isArray(data)) {
+                            data.forEach(item => {
+                                let node = this.model.nodes.find(n => n.name === item.name || n.id === item.id);
+                                if (node) {
+                                    if (item.mw !== undefined) node.mw = parseFloat(item.mw);
+                                    if (item.value !== undefined) node.mw = parseFloat(item.value);
+                                    if (item.status !== undefined) node.status = item.status;
+                                    updated++;
+                                }
+                            });
+                        } else {
+                            for (let key in data) {
+                                let node = this.model.nodes.find(n => n.name === key || n.id === key);
+                                if (node) {
+                                    if (data[key].mw !== undefined) node.mw = parseFloat(data[key].mw);
+                                    if (data[key].value !== undefined) node.mw = parseFloat(data[key].value);
+                                    if (data[key].status !== undefined) node.status = data[key].status;
+                                    updated++;
+                                }
+                            }
+                        }
+                        alert(`Successfully applied JSON live data to ${updated} elements!`);
+                    } catch (err) {
+                        alert("Invalid JSON format for data injection.");
+                    }
                 }
+                this.runPowerFlow();
+                this.updateInspector();
             };
             reader.readAsText(file);
             e.target.value = '';
@@ -517,20 +545,36 @@ class SLDApp {
         return null;
     }
 
+    getWireGroups() {
+        let groups = {};
+        this.model.wires.forEach(w => {
+            let key = [w.from, w.to].sort().join('-');
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(w);
+        });
+        return groups;
+    }
+
     findWireAt(wx, wy) {
+        const groups = this.getWireGroups();
         for (const w of this.model.wires) {
             const n1 = this.model.nodes.find(n => n.id === w.from);
             const n2 = this.model.nodes.find(n => n.id === w.to);
             if (!n1 || !n2) continue;
             
-            // Approximate hit detection along the Manhattan routing path
-            let p1 = this.getConnectionPoint(n1, n2);
-            let p2 = this.getConnectionPoint(n2, n1);
-            const midX = (p1.x + p2.x) / 2;
+            const group = groups[[n1.id, n2.id].sort().join('-')];
+            const index = group.indexOf(w);
+            const offset = (index - (group.length - 1) / 2) * 20;
 
-            const d1 = this.distToSegment({x: wx, y: wy}, {x: p1.x, y: p1.y}, {x: midX, y: p1.y});
-            const d2 = this.distToSegment({x: wx, y: wy}, {x: midX, y: p1.y}, {x: midX, y: p2.y});
-            const d3 = this.distToSegment({x: wx, y: wy}, {x: midX, y: p2.y}, {x: p2.x, y: p2.y});
+            let p1 = this.getConnectionPoint(n1, n2, offset);
+            let p2 = this.getConnectionPoint(n2, n1, offset);
+            
+            let drawMidX = (p1.x + p2.x) / 2;
+            if (n1.type !== 'bus' && n2.type !== 'bus') drawMidX += offset;
+
+            const d1 = this.distToSegment({x: wx, y: wy}, {x: p1.x, y: p1.y}, {x: drawMidX, y: p1.y});
+            const d2 = this.distToSegment({x: wx, y: wy}, {x: drawMidX, y: p1.y}, {x: drawMidX, y: p2.y});
+            const d3 = this.distToSegment({x: wx, y: wy}, {x: drawMidX, y: p2.y}, {x: p2.x, y: p2.y});
             
             if (d1 < 8 || d2 < 8 || d3 < 8) return w;
         }
@@ -545,18 +589,19 @@ class SLDApp {
         return Math.hypot(p.x - (a.x + t*(b.x - a.x)), p.y - (a.y + t*(b.y - a.y)));
     }
 
-    // NEW: Dynamics orthographic connection snapping for buses
-    getConnectionPoint(node, otherNode) {
+    getConnectionPoint(node, otherNode, offset = 0) {
         let p = { x: node.x, y: node.y };
         if (node.type === 'bus') {
             let w = node.width || 140; 
-            let isH = node.orientation !== 'V'; // default H
+            let isH = node.orientation !== 'V'; 
             if (isH) {
-                // Project X coordinate onto bus bounds
                 p.x = Math.max(node.x - w/2 + 8, Math.min(node.x + w/2 - 8, otherNode.x));
+                p.x += offset; // Parallel rendering offset
+                p.x = Math.max(node.x - w/2 + 4, Math.min(node.x + w/2 - 4, p.x));
             } else {
-                // Project Y coordinate onto bus bounds
                 p.y = Math.max(node.y - w/2 + 8, Math.min(node.y + w/2 - 8, otherNode.y));
+                p.y += offset;
+                p.y = Math.max(node.y - w/2 + 4, Math.min(node.y + w/2 - 4, p.y));
             }
         }
         return p;
@@ -945,7 +990,7 @@ class SLDApp {
                     </select>
                 </div>
                 <div class="form-group"><label>Reactance (X pu)</label><input type="number" step="0.01" class="form-control" id="wire-x" value="${w.reactance || 0.03}"></div>
-                <div class="form-group"><label>Thermal Limit (MW)</label><input type="number" class="form-control" id="wire-limit" value="${w.limit || 100}"></div>
+                <div class="form-group"><label>Thermal Limit (MW/MVA)</label><input type="number" class="form-control" id="wire-limit" value="${w.limit || 100}"></div>
                 <div style="margin-top: 12px;">
                     <button class="btn btn-warning" style="width: 100%;" id="btn-delete-wire">Delete Line</button>
                 </div>
@@ -1018,6 +1063,8 @@ class SLDApp {
 
         this.drawGridBackground();
 
+        const wireGroups = this.getWireGroups();
+
         this.model.wires.forEach(w => {
             const n1 = this.model.nodes.find(n => n.id === w.from);
             const n2 = this.model.nodes.find(n => n.id === w.to);
@@ -1026,15 +1073,21 @@ class SLDApp {
             const isSelected = this.selectedWire && this.selectedWire.id === w.id;
             const isOverloaded = (w.loading || 0) > 100;
             
-            // Dynamic orthogonal snapping points
-            let p1 = this.getConnectionPoint(n1, n2);
-            let p2 = this.getConnectionPoint(n2, n1);
+            // Offset calculation for parallel wires
+            const group = wireGroups[[n1.id, n2.id].sort().join('-')];
+            const index = group.indexOf(w);
+            const offset = (index - (group.length - 1) / 2) * 20;
+
+            let p1 = this.getConnectionPoint(n1, n2, offset);
+            let p2 = this.getConnectionPoint(n2, n1, offset);
+
+            let drawMidX = (p1.x + p2.x) / 2;
+            if (n1.type !== 'bus' && n2.type !== 'bus') drawMidX += offset;
 
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
-            const midX = (p1.x + p2.x) / 2;
-            ctx.lineTo(midX, p1.y);
-            ctx.lineTo(midX, p2.y);
+            ctx.lineTo(drawMidX, p1.y);
+            ctx.lineTo(drawMidX, p2.y);
             ctx.lineTo(p2.x, p2.y);
 
             ctx.lineWidth = isSelected ? 4 : 2;
@@ -1044,24 +1097,32 @@ class SLDApp {
             ctx.stroke();
             ctx.setLineDash([]);
 
-            if (w.status === 'closed' && (w.flow || 0) > 0) {
+            // Advanced Particle Flow Tracking along updated Manhattan Path
+            let len1 = Math.abs(drawMidX - p1.x);
+            let len2 = Math.abs(p2.y - p1.y);
+            let len3 = Math.abs(p2.x - drawMidX);
+            let totalLen = len1 + len2 + len3;
+
+            if (w.status === 'closed' && (w.flow || 0) > 0 && totalLen > 0) {
                 const particleCount = 3;
                 const dir = w.direction || 1; 
                 for (let i = 0; i < particleCount; i++) {
-                    const tVal = dir > 0 ? (this.animPhase * 0.015 + i / particleCount) : (1.0 - ((this.animPhase * 0.015 + i / particleCount) % 1));
-                    const t = tVal % 1;
+                    let rawT = (this.animPhase * 0.015 + i / particleCount);
+                    let tVal = dir > 0 ? rawT : (1.0 - (rawT % 1));
+                    let d = (tVal % 1) * totalLen;
                     let px, py;
-                    if (t < 0.5) {
-                        const st = t * 2;
-                        px = p1.x + (midX - p1.x) * st;
+                    
+                    if (d <= len1) {
+                        let pct = len1 > 0 ? d / len1 : 0;
+                        px = p1.x + (drawMidX - p1.x) * pct;
                         py = p1.y;
-                    } else if (t < 0.75) {
-                        const st = (t - 0.5) * 4;
-                        px = midX;
-                        py = p1.y + (p2.y - p1.y) * st;
+                    } else if (d <= len1 + len2) {
+                        let pct = len2 > 0 ? (d - len1) / len2 : 0;
+                        px = drawMidX;
+                        py = p1.y + (p2.y - p1.y) * pct;
                     } else {
-                        const st = (t - 0.75) * 4;
-                        px = midX + (p2.x - midX) * st;
+                        let pct = len3 > 0 ? (d - len1 - len2) / len3 : 0;
+                        px = drawMidX + (p2.x - drawMidX) * pct;
                         py = p2.y;
                     }
 
@@ -1072,8 +1133,23 @@ class SLDApp {
                 }
             }
 
-            const labelX = midX;
-            const labelY = (p1.y + p2.y) / 2;
+            // Precisely target center of path length for label
+            let labelD = totalLen * 0.5;
+            let labelX, labelY;
+            if (labelD <= len1) {
+                let pct = len1 > 0 ? labelD / len1 : 0;
+                labelX = p1.x + (drawMidX - p1.x) * pct;
+                labelY = p1.y;
+            } else if (labelD <= len1 + len2) {
+                let pct = len2 > 0 ? (labelD - len1) / len2 : 0;
+                labelX = drawMidX;
+                labelY = p1.y + (p2.y - p1.y) * pct;
+            } else {
+                let pct = len3 > 0 ? (labelD - len1 - len2) / len3 : 0;
+                labelX = drawMidX + (p2.x - drawMidX) * pct;
+                labelY = p2.y;
+            }
+
             ctx.fillStyle = 'rgba(17, 24, 39, 0.85)';
             ctx.strokeStyle = isOverloaded ? '#f87171' : '#374151';
             ctx.lineWidth = 1;
