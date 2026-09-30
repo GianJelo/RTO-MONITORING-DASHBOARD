@@ -24,7 +24,7 @@
     }
   </script>
   <style>
-    /* CRITICAL SAFARI / iOS FIXES */
+    /* CRITICAL SAFARI / iOS / MOBILE FIXES */
     html, body { 
         width: 100%; height: 100%; margin: 0; padding: 0; 
         overflow: hidden; position: fixed; 
@@ -51,6 +51,8 @@
     .overload { animation: pulseWarning 1s ease-in-out infinite !important; stroke-width: 3px !important; }
     .canvas-bg { background-image: radial-gradient(circle, #334155 1px, transparent 1px); background-size: 30px 30px; }
     .toast { animation: toastFadeInOut 3s ease-in-out forwards; }
+    
+    /* Scrollbars for panels */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
@@ -67,7 +69,6 @@
 </head>
 <body class="bg-canvas text-slate-200 font-sans flex flex-col no-touch">
 
-  <!-- Header -->
   <header class="h-12 border-b border-slate-700 bg-panel px-3 flex items-center justify-between z-30 shrink-0 shadow-md">
     <div class="flex items-center gap-2">
       <div class="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center font-bold font-mono text-white text-[11px] shadow-[0_0_8px_rgba(79,70,229,0.5)]">SLD</div>
@@ -98,12 +99,11 @@
     </div>
   </header>
 
-  <!-- Main Workspace -->
   <div class="flex-1 flex overflow-hidden relative">
     
     <aside id="leftPanel" class="w-[220px] bg-panel flex flex-col z-20 shrink-0 h-full border-r border-slate-800">
-      <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider">Palette</div>
-      <div class="p-2 grid grid-cols-2 gap-2 flex-1 content-start overflow-y-auto">
+      <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider shrink-0">Palette</div>
+      <div class="p-2 grid grid-cols-2 gap-2 flex-1 content-start overflow-y-auto pointer-events-auto" style="touch-action: pan-y;">
         <button onclick="spawnComponent('BUS')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
           <div class="w-10 h-1.5 bg-kv230 rounded-sm group-hover:scale-110 transition-transform"></div>
           <span class="text-[10px] font-medium">Busbar</span>
@@ -138,12 +138,12 @@
       <div class="p-3 border-t border-slate-700 bg-slate-900 text-xs font-mono shrink-0">
         <div class="font-bold text-slate-400 mb-2 uppercase text-[10px]">Live System Balance</div>
         <div class="flex justify-between text-slate-300 mb-1"><span>Generation:</span> <span id="lblGen" class="text-green-400 font-bold">0.0 MW</span></div>
-        <div class="flex justify-between text-slate-300 mb-1"><span>Load:</span> <span id="lblLoad" class="text-amber-400 font-bold">0.0 MW</span></div>
+        <div class="flex justify-between text-slate-300 mb-1"><span>Demand:</span> <span id="lblLoad" class="text-amber-400 font-bold">0.0 MW</span></div>
         <div class="flex justify-between text-slate-300 pt-1 border-t border-slate-700"><span>Net / Loss:</span> <span id="lblLoss" class="text-red-400 font-bold">0.0 MW</span></div>
       </div>
     </aside>
 
-    <div class="resizer no-touch" id="resizerLeft"></div>
+    <div class="resizer no-touch shrink-0" id="resizerLeft"></div>
 
     <main id="viewportContainer" class="flex-1 relative canvas-bg overflow-hidden cursor-grab active:cursor-grabbing min-w-[200px] h-full no-touch">
       <svg id="canvas" class="w-full h-full absolute inset-0 font-sans pointer-events-none">
@@ -158,22 +158,22 @@
           <circle id="snapIndicator" cx="0" cy="0" r="8" fill="none" stroke="#22c55e" stroke-width="2" class="hidden drop-shadow-[0_0_5px_#22c55e]" />
         </g>
       </svg>
-      <div id="tooltip" class="absolute hidden bg-slate-800 border border-slate-600 rounded shadow-xl p-2.5 text-xs pointer-events-none z-50 w-48 text-slate-300 transition-opacity duration-150"></div>
     </main>
 
-    <div class="resizer no-touch" id="resizerRight"></div>
+    <div class="resizer no-touch shrink-0" id="resizerRight"></div>
 
     <aside id="rightPanel" class="w-[260px] bg-panel flex flex-col z-20 shrink-0 h-full border-l border-slate-800">
-      <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider flex justify-between items-center bg-slate-800/50">
+      <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider flex justify-between items-center bg-slate-800/50 shrink-0">
         <span>Inspector</span>
         <span id="insType" class="text-indigo-400 bg-indigo-900/40 px-1.5 py-0.5 rounded border border-indigo-700/50">NONE</span>
       </div>
       
-      <div id="inspectorPanel" class="p-4 overflow-y-auto flex-1 text-[11px] font-sans">
+      <div id="inspectorPanel" class="p-4 overflow-y-auto flex-1 text-[11px] font-sans pointer-events-auto" style="touch-action: pan-y;">
         <div id="inspector-none" class="text-center py-10 text-slate-500 text-xs">
           Select an element to inspect and edit.<br><br><b>R</b> to rotate.<br><b>Del</b> to remove.
         </div>
 
+        <!-- Static DOM data-binding to prevent keyboard drop -->
         <div id="inspector-form" class="hidden flex flex-col gap-4">
           
           <div id="wrap-name">
@@ -228,9 +228,13 @@
             <button id="btn-breaker" onclick="toggleBreaker()" class="w-full py-2.5 font-bold rounded border shadow-sm transition tracking-wider text-xs"></button>
           </div>
 
-          <div class="mt-4 pt-4 border-t border-slate-700/80">
+          <div class="mt-4 pt-4 border-t border-slate-700/80 flex flex-col gap-2 shrink-0">
+            <!-- NEW: Duplicate Button -->
+            <button onclick="duplicateElement()" class="w-full bg-indigo-900/20 text-indigo-400 hover:bg-indigo-900/40 py-2 rounded border border-indigo-900/50 transition font-bold flex justify-center items-center gap-1.5">
+               Duplicate Element
+            </button>
             <button onclick="deleteElement()" class="w-full bg-red-900/20 text-red-500 hover:bg-red-900/40 py-2 rounded border border-red-900/50 transition font-bold flex justify-center items-center gap-1.5">
-               Delete Selected Element
+               Delete Selected
             </button>
           </div>
         </div>
@@ -289,7 +293,7 @@
           if (w > 150 && w < 500) $('rightPanel').style.width = w + 'px';
         }
       });
-      window.addEventListener('pointerup', () => isResizing = null);
+      window.addEventListener('pointerup', () => { isResizing = null; });
     }
     initSplitters();
 
@@ -333,7 +337,7 @@
     }
 
     function findSnapTarget(mx, my) {
-      let best = null; let minDist = 250; // slightly larger snap radius for touch
+      let best = null; let minDist = 300; 
       state.buses.forEach(b => {
         let hw = b.rot === 'H' ? b.len / 2 : 8, hh = b.rot === 'H' ? 8 : b.len / 2;
         let cx = Math.max(b.x - hw, Math.min(mx, b.x + hw)), cy = Math.max(b.y - hh, Math.min(my, b.y + hh));
@@ -349,7 +353,7 @@
         }
       });
       if(best) return best;
-      minDist = 150;
+      minDist = 200;
       state.wires.forEach(w => {
         if(wireSourceTerm && (w.src === wireSourceTerm || w.tgt === wireSourceTerm)) return; 
         let c = resolveWireCoordinates(w.src, w.tgt);
@@ -463,7 +467,6 @@
         const color = b.energized ? (V_COLORS[b.kv] || '#888') : '#475569';
         
         let g = createSVG('g', { class: 'pointer-events-auto cursor-pointer hover:brightness-110 transition-all' });
-        // Use pointerdown to ensure it works on iPad
         g.addEventListener('pointerdown', e => startDrag(e, 'BUS', b.id));
 
         g.appendChild(createSVG('rect', { x: b.x - w/2, y: b.y - h/2, width: w, height: h, rx: 3, fill: color, stroke: isSel ? '#ffffff' : 'none', 'stroke-width': 3 }));
@@ -556,97 +559,6 @@
       }
       setMode('SELECT'); render();
     }
-
-    function selectElement(type, id) {
-      selectedType = type; selectedId = id;
-      populateInspector();
-      render();
-    }
-
-    function populateInspector() {
-      if(!selectedId) {
-        $('insType').textContent = 'NONE';
-        $('inspector-none').classList.remove('hidden');
-        $('inspector-form').classList.add('hidden');
-        return;
-      }
-
-      $('inspector-none').classList.add('hidden');
-      $('inspector-form').classList.remove('hidden');
-      
-      let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
-      $('insType').textContent = selectedType === 'BUS' ? 'BUSBAR' : el.type;
-      
-      const fields = ['wrap-kv', 'wrap-len', 'wrap-pmw', 'wrap-maxmw', 'wrap-xpu', 'wrap-limit', 'wrap-rotate', 'wrap-breaker'];
-      fields.forEach(f => $(f).classList.add('hidden'));
-
-      $('prop-name').value = el.name || '';
-
-      if (selectedType === 'BUS') {
-        $('wrap-kv').classList.remove('hidden'); $('prop-kv').value = el.kv;
-        $('wrap-len').classList.remove('hidden'); $('prop-len').value = el.len;
-        $('wrap-rotate').classList.remove('hidden'); $('txt-rotate').textContent = el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕';
-      } else {
-        if (['BREAKER', 'LINE', 'XFMR'].includes(el.type)) {
-           $('wrap-rotate').classList.remove('hidden'); $('txt-rotate').textContent = el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕';
-        }
-        if (el.type === 'GEN') {
-          $('wrap-pmw').classList.remove('hidden'); $('lbl-pmw').textContent = "Active Power (MW)"; $('prop-pmw').value = el.pMW;
-          $('wrap-maxmw').classList.remove('hidden'); $('prop-maxmw').value = el.maxMW;
-        } else if (el.type === 'LOAD') {
-          $('wrap-pmw').classList.remove('hidden'); $('lbl-pmw').textContent = "Demand (MW)"; $('prop-pmw').value = el.pMW;
-        } else if (['LINE', 'XFMR'].includes(el.type)) {
-          $('wrap-xpu').classList.remove('hidden'); $('prop-xpu').value = el.xpu;
-          $('wrap-limit').classList.remove('hidden'); $('prop-limit').value = el.limit;
-        } else if (el.type === 'BREAKER') {
-          $('wrap-breaker').classList.remove('hidden');
-          updateBreakerButton(el.status);
-        }
-      }
-    }
-
-    function updateParam(key, val) {
-      if(!selectedId) return;
-      let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
-      if(el) { el[key] = val; render(); }
-    }
-
-    function toggleRotate() {
-      let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
-      if(el) {
-        el.rot = el.rot === 'H' ? 'V' : 'H';
-        $('txt-rotate').textContent = el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕';
-        render();
-      }
-    }
-
-    function toggleBreaker() {
-      let el = getComp(selectedId);
-      if(el && el.type === 'BREAKER') {
-        el.status = el.status === 'CLOSED' ? 'OPEN' : 'CLOSED';
-        updateBreakerButton(el.status);
-        render();
-      }
-    }
-    
-    function updateBreakerButton(status) {
-      const btn = $('btn-breaker');
-      if (status === 'CLOSED') {
-         btn.className = "w-full py-2.5 font-bold rounded border shadow-sm transition tracking-wider text-xs bg-red-900/30 text-red-400 border-red-800";
-         btn.textContent = "TRIP (OPEN)";
-      } else {
-         btn.className = "w-full py-2.5 font-bold rounded border shadow-sm transition tracking-wider text-xs bg-green-900/30 text-green-400 border-green-800";
-         btn.textContent = "CLOSE BREAKER";
-      }
-    }
-
-    window.deleteElement = function() {
-      if(!selectedId) return;
-      state.wires = state.wires.filter(w => !w.src.startsWith(selectedId) && !w.tgt.startsWith(selectedId));
-      if(selectedType === 'BUS') state.buses = state.buses.filter(b => b.id !== selectedId);
-      else state.components = state.components.filter(c => c.id !== selectedId);
-      selectedId = null; populateInspector(); render();
-    };
 
     function handleWiring(type, id, cx, cy) {
       if(!wireSourceTerm) {
@@ -752,12 +664,126 @@
       $('transformGroup').setAttribute('transform', `translate(${vp.x}, ${vp.y}) scale(${vp.scale})`);
     }, { passive: false });
 
+    function selectElement(type, id) {
+      selectedType = type; selectedId = id;
+      populateInspector(); render();
+    }
+
+    function populateInspector() {
+      if(!selectedId) {
+        $('insType').textContent = 'NONE';
+        $('inspector-none').classList.remove('hidden');
+        $('inspector-form').classList.add('hidden');
+        return;
+      }
+
+      $('inspector-none').classList.add('hidden');
+      $('inspector-form').classList.remove('hidden');
+      
+      let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
+      $('insType').textContent = selectedType === 'BUS' ? 'BUSBAR' : el.type;
+      
+      const fields = ['wrap-kv', 'wrap-len', 'wrap-pmw', 'wrap-maxmw', 'wrap-xpu', 'wrap-limit', 'wrap-rotate', 'wrap-breaker'];
+      fields.forEach(f => $(f).classList.add('hidden'));
+
+      $('prop-name').value = el.name || '';
+
+      if (selectedType === 'BUS') {
+        $('wrap-kv').classList.remove('hidden'); $('prop-kv').value = el.kv;
+        $('wrap-len').classList.remove('hidden'); $('prop-len').value = el.len;
+        $('wrap-rotate').classList.remove('hidden'); $('txt-rotate').textContent = el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕';
+      } else {
+        if (['BREAKER', 'LINE', 'XFMR'].includes(el.type)) {
+           $('wrap-rotate').classList.remove('hidden'); $('txt-rotate').textContent = el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕';
+        }
+        if (el.type === 'GEN') {
+          $('wrap-pmw').classList.remove('hidden'); $('lbl-pmw').textContent = "Active Power (MW)"; $('prop-pmw').value = el.pMW;
+          $('wrap-maxmw').classList.remove('hidden'); $('prop-maxmw').value = el.maxMW;
+        } else if (el.type === 'LOAD') {
+          $('wrap-pmw').classList.remove('hidden'); $('lbl-pmw').textContent = "Demand (MW)"; $('prop-pmw').value = el.pMW;
+        } else if (['LINE', 'XFMR'].includes(el.type)) {
+          $('wrap-xpu').classList.remove('hidden'); $('prop-xpu').value = el.xpu;
+          $('wrap-limit').classList.remove('hidden'); $('prop-limit').value = el.limit;
+        } else if (el.type === 'BREAKER') {
+          $('wrap-breaker').classList.remove('hidden');
+          updateBreakerButton(el.status);
+        }
+      }
+    }
+
+    function updateParam(key, val) {
+      if(!selectedId) return;
+      let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
+      if(el) { el[key] = val; render(); }
+    }
+
+    function toggleRotate() {
+      let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
+      if(el) {
+        el.rot = el.rot === 'H' ? 'V' : 'H';
+        $('txt-rotate').textContent = el.rot === 'H' ? 'Horizontal ↔' : 'Vertical ↕';
+        render();
+      }
+    }
+
+    function toggleBreaker() {
+      let el = getComp(selectedId);
+      if(el && el.type === 'BREAKER') {
+        el.status = el.status === 'CLOSED' ? 'OPEN' : 'CLOSED';
+        updateBreakerButton(el.status);
+        render();
+      }
+    }
+    
+    function updateBreakerButton(status) {
+      const btn = $('btn-breaker');
+      if (status === 'CLOSED') {
+         btn.className = "w-full py-2.5 font-bold rounded border shadow-sm transition tracking-wider text-xs bg-red-900/30 text-red-400 border-red-800";
+         btn.textContent = "TRIP (OPEN)";
+      } else {
+         btn.className = "w-full py-2.5 font-bold rounded border shadow-sm transition tracking-wider text-xs bg-green-900/30 text-green-400 border-green-800";
+         btn.textContent = "CLOSE BREAKER";
+      }
+    }
+
+    window.duplicateElement = function() {
+      if(!selectedId) return;
+      let original = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
+      if(!original) return;
+
+      let duplicate = JSON.parse(JSON.stringify(original));
+      duplicate.id = genId(selectedType === 'BUS' ? 'B' : 'C');
+      duplicate.x = original.x + 20;
+      duplicate.y = original.y + 20;
+      duplicate.name = original.name + ' (Copy)';
+
+      if(selectedType === 'BUS') {
+        state.buses.push(duplicate);
+      } else {
+        state.components.push(duplicate);
+      }
+
+      showToast("Element Duplicated");
+      selectElement(selectedType, duplicate.id);
+    }
+
+    window.deleteElement = function() {
+      if(!selectedId) return;
+      state.wires = state.wires.filter(w => !w.src.startsWith(selectedId) && !w.tgt.startsWith(selectedId));
+      if(selectedType === 'BUS') state.buses = state.buses.filter(b => b.id !== selectedId);
+      else state.components = state.components.filter(c => c.id !== selectedId);
+      selectedId = null; populateInspector(); render();
+    };
+
     window.addEventListener('keydown', e => {
       if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
       if(e.key.toLowerCase() === 'r' && selectedId) toggleRotate();
       else if (e.key.toLowerCase() === 'v') setMode('SELECT');
       else if (e.key.toLowerCase() === 'w') setMode('WIRE');
       else if (e.key === 'Delete' || e.key === 'Backspace') deleteElement();
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+         e.preventDefault(); duplicateElement();
+      }
     });
 
     function exportData() {
