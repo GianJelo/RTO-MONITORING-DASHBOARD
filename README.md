@@ -1,7 +1,8 @@
+<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>SLD Market Simulator</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -24,6 +25,18 @@
     }
   </script>
   <style>
+    /* CRITICAL SAFARI / iOS FIXES */
+    html, body { 
+        width: 100%; height: 100%; margin: 0; padding: 0; 
+        overflow: hidden; position: fixed; 
+        -webkit-text-size-adjust: 100%;
+    }
+    .no-touch { 
+        touch-action: none; 
+        -webkit-user-select: none; 
+        user-select: none; 
+    }
+    
     @keyframes dashFlow { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
     @keyframes pulseWarning {
       0%, 100% { stroke: #ef4444; filter: drop-shadow(0 0 6px #ef4444); }
@@ -43,9 +56,8 @@
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
     
-    /* Resizer styling */
     .resizer {
-      width: 4px;
+      width: 6px;
       background: #1e293b;
       cursor: col-resize;
       transition: background 0.2s;
@@ -54,93 +66,88 @@
     .resizer:hover, .resizer:active { background: #6366f1; }
   </style>
 </head>
-<body class="h-screen w-screen overflow-hidden bg-canvas text-slate-200 font-sans flex flex-col select-none relative">
+<body class="bg-canvas text-slate-200 font-sans flex flex-col no-touch">
 
-  <header class="h-10 border-b border-slate-700 bg-panel px-3 flex items-center justify-between z-30 shrink-0">
+  <!-- Header -->
+  <header class="h-12 border-b border-slate-700 bg-panel px-3 flex items-center justify-between z-30 shrink-0 shadow-md">
     <div class="flex items-center gap-2">
-      <div class="w-6 h-6 rounded bg-indigo-600 flex items-center justify-center font-bold font-mono text-white text-[10px] shadow-[0_0_8px_rgba(79,70,229,0.5)]">SLD</div>
-      <h1 class="font-bold text-xs tracking-wide hidden sm:block text-slate-300">MARKET SIMULATOR</h1>
+      <div class="w-7 h-7 rounded bg-indigo-600 flex items-center justify-center font-bold font-mono text-white text-[11px] shadow-[0_0_8px_rgba(79,70,229,0.5)]">SLD</div>
+      <h1 class="font-bold text-sm tracking-wide hidden sm:block text-slate-300">MARKET SIMULATOR</h1>
     </div>
 
-    <div class="flex items-center gap-1.5 text-xs">
-      <button id="btnSelect" class="px-2.5 py-1 rounded bg-indigo-600 text-white font-medium transition flex items-center gap-1 shadow-lg" onclick="setMode('SELECT')">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+    <div class="flex items-center gap-2 text-xs">
+      <button id="btnSelect" class="px-3 py-1.5 rounded bg-indigo-600 text-white font-medium transition flex items-center gap-1 shadow-lg" onclick="setMode('SELECT')">
         Select (V)
       </button>
-      <button id="btnWire" class="px-2.5 py-1 rounded border border-slate-600 hover:bg-slate-700 text-slate-300 font-medium transition relative flex items-center gap-1" onclick="setMode('WIRE')">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+      <button id="btnWire" class="px-3 py-1.5 rounded border border-slate-600 hover:bg-slate-700 text-slate-300 font-medium transition relative flex items-center gap-1" onclick="setMode('WIRE')">
         Wire (W)
-        <span id="wireBadge" class="hidden absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
+        <span id="wireBadge" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping"></span>
       </button>
 
-      <div class="w-px h-4 bg-slate-600 mx-1"></div>
+      <div class="w-px h-5 bg-slate-600 mx-1"></div>
 
-      <button class="px-2 py-1 rounded bg-emerald-600/80 hover:bg-emerald-500 text-white font-medium transition flex items-center gap-1" onclick="exportData()" title="Save Model to JSON File">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+      <button class="px-3 py-1.5 rounded bg-emerald-600/80 hover:bg-emerald-500 text-white font-medium transition flex items-center gap-1" onclick="exportData()" title="Save Model to JSON File">
         Export
       </button>
-      <button class="px-2 py-1 rounded bg-amber-600/80 hover:bg-amber-500 text-white font-medium transition flex items-center gap-1" onclick="document.getElementById('fileUpload').click()" title="Load Model from JSON File">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+      <button class="px-3 py-1.5 rounded bg-amber-600/80 hover:bg-amber-500 text-white font-medium transition flex items-center gap-1" onclick="document.getElementById('fileUpload').click()" title="Load Model from JSON File">
         Import
       </button>
       <input type="file" id="fileUpload" class="hidden" accept=".json" onchange="importData(event)">
       
-      <div class="w-px h-4 bg-slate-600 mx-0.5"></div>
-      <button class="px-2 py-1 rounded border border-red-900/50 text-red-400 hover:bg-red-900/50 transition" onclick="clearCanvas()" title="Clear Canvas">🗑️</button>
+      <div class="w-px h-5 bg-slate-600 mx-1"></div>
+      <button class="px-3 py-1.5 rounded border border-red-900/50 text-red-400 hover:bg-red-900/50 transition" onclick="clearCanvas()" title="Clear Canvas">Clear</button>
     </div>
   </header>
 
+  <!-- Main Workspace -->
   <div class="flex-1 flex overflow-hidden relative">
     
-    <!-- Left Sidebar: Palette -->
-    <aside id="leftPanel" class="w-[200px] bg-panel flex flex-col z-20 shrink-0">
+    <aside id="leftPanel" class="w-[220px] bg-panel flex flex-col z-20 shrink-0 h-full border-r border-slate-800">
       <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider">Palette</div>
-      <div class="p-2 grid grid-cols-2 gap-1.5 flex-1 content-start overflow-y-auto">
-        <!-- Palette Buttons -->
-        <button onclick="spawnComponent('BUS')" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-1.5 transition group">
+      <div class="p-2 grid grid-cols-2 gap-2 flex-1 content-start overflow-y-auto">
+        <button onclick="spawnComponent('BUS')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
           <div class="w-10 h-1.5 bg-kv230 rounded-sm group-hover:scale-110 transition-transform"></div>
           <span class="text-[10px] font-medium">Busbar</span>
         </button>
-        <button onclick="spawnComponent('GEN')" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-1.5 transition group">
-          <div class="w-6 h-6 rounded-full border-2 border-green-500 text-green-500 flex items-center justify-center text-[10px] font-bold group-hover:scale-110 transition-transform">G</div>
+        <button onclick="spawnComponent('GEN')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
+          <div class="w-7 h-7 rounded-full border-2 border-green-500 text-green-500 flex items-center justify-center text-[11px] font-bold group-hover:scale-110 transition-transform">G</div>
           <span class="text-[10px] font-medium">Generator</span>
         </button>
-        <button onclick="spawnComponent('LOAD')" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-1.5 transition group">
-          <div class="w-0 h-0 border-l-[10px] border-r-[10px] border-t-[14px] border-l-transparent border-r-transparent border-t-amber-500 group-hover:scale-110 transition-transform"></div>
+        <button onclick="spawnComponent('LOAD')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
+          <div class="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[16px] border-l-transparent border-r-transparent border-t-amber-500 group-hover:scale-110 transition-transform"></div>
           <span class="text-[10px] font-medium">Load</span>
         </button>
-        <button onclick="spawnComponent('LINE')" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-1.5 transition group">
+        <button onclick="spawnComponent('LINE')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
           <div class="w-10 h-0.5 bg-blue-400 relative group-hover:scale-110 transition-transform">
             <div class="absolute -top-1 left-1/2 w-2.5 h-2.5 bg-blue-400 rounded-sm transform -translate-x-1/2"></div>
           </div>
           <span class="text-[10px] font-medium">Trans. Line</span>
         </button>
-        <button onclick="spawnComponent('XFMR')" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-1.5 transition group">
+        <button onclick="spawnComponent('XFMR')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
           <div class="flex items-center group-hover:scale-110 transition-transform">
             <div class="w-5 h-5 rounded-full border-2 border-orange-400 -mr-2"></div>
             <div class="w-5 h-5 rounded-full border-2 border-orange-400"></div>
           </div>
           <span class="text-[10px] font-medium">Transformer</span>
         </button>
-        <button onclick="spawnComponent('BREAKER')" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-1.5 transition group">
-          <div class="w-5 h-5 border-2 border-red-500 bg-red-900 rounded flex items-center justify-center font-bold text-[8px] text-red-400 group-hover:scale-110 transition-transform">CB</div>
+        <button onclick="spawnComponent('BREAKER')" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded flex flex-col items-center gap-2 transition group">
+          <div class="w-6 h-6 border-2 border-red-500 bg-red-900 rounded flex items-center justify-center font-bold text-[9px] text-red-400 group-hover:scale-110 transition-transform">CB</div>
           <span class="text-[10px] font-medium">Breaker</span>
         </button>
       </div>
       
-      <!-- Live Stats Panel -->
-      <div class="p-3 border-t border-slate-700 bg-slate-900 text-[11px] font-mono shrink-0">
-        <div class="font-bold text-slate-400 mb-1.5 uppercase">Live Stats</div>
-        <div class="flex justify-between text-slate-300 mb-0.5"><span>Gen:</span> <span id="lblGen" class="text-green-400 font-bold">0.0 MW</span></div>
-        <div class="flex justify-between text-slate-300 mb-0.5"><span>Load:</span> <span id="lblLoad" class="text-amber-400 font-bold">0.0 MW</span></div>
-        <div class="flex justify-between text-slate-300"><span>Loss:</span> <span id="lblLoss" class="text-red-400 font-bold">0.0 MW</span></div>
+      <div class="p-3 border-t border-slate-700 bg-slate-900 text-xs font-mono shrink-0">
+        <div class="font-bold text-slate-400 mb-2 uppercase text-[10px]">Live System Balance</div>
+        <div class="flex justify-between text-slate-300 mb-1"><span>Generation:</span> <span id="lblGen" class="text-green-400 font-bold">0.0 MW</span></div>
+        <div class="flex justify-between text-slate-300 mb-1"><span>Load:</span> <span id="lblLoad" class="text-amber-400 font-bold">0.0 MW</span></div>
+        <div class="flex justify-between text-slate-300 pt-1 border-t border-slate-700"><span>Net / Loss:</span> <span id="lblLoss" class="text-red-400 font-bold">0.0 MW</span></div>
       </div>
     </aside>
 
-    <div class="resizer" id="resizerLeft"></div>
+    <div class="resizer no-touch" id="resizerLeft"></div>
 
-    <main id="viewportContainer" class="flex-1 relative canvas-bg overflow-hidden cursor-grab active:cursor-grabbing min-w-[200px]">
-      <svg id="canvas" class="w-full h-full absolute inset-0 font-sans">
+    <main id="viewportContainer" class="flex-1 relative canvas-bg overflow-hidden cursor-grab active:cursor-grabbing min-w-[200px] h-full no-touch">
+      <svg id="canvas" class="w-full h-full absolute inset-0 font-sans pointer-events-none">
         <g id="transformGroup" transform="translate(0,0) scale(1)">
           <g id="layer-wires"></g>
           <g id="layer-flow"></g>
@@ -148,40 +155,36 @@
           <g id="layer-buses"></g>
           <g id="layer-snap-hints"></g>
           <g id="layer-live-labels"></g> 
-          <!-- Active wiring line -->
-          <line id="activeWire" x1="0" y1="0" x2="0" y2="0" stroke="#f43f5e" stroke-width="2.5" stroke-dasharray="6 4" class="hidden pointer-events-none drop-shadow-[0_0_5px_#f43f5e]" />
-          <circle id="snapIndicator" cx="0" cy="0" r="8" fill="none" stroke="#22c55e" stroke-width="2" class="hidden pointer-events-none drop-shadow-[0_0_5px_#22c55e]" />
+          <line id="activeWire" x1="0" y1="0" x2="0" y2="0" stroke="#f43f5e" stroke-width="2.5" stroke-dasharray="6 4" class="hidden drop-shadow-[0_0_5px_#f43f5e]" />
+          <circle id="snapIndicator" cx="0" cy="0" r="8" fill="none" stroke="#22c55e" stroke-width="2" class="hidden drop-shadow-[0_0_5px_#22c55e]" />
         </g>
       </svg>
-      <!-- HTML Overlay Tooltip -->
-      <div id="tooltip" class="absolute hidden bg-slate-800 border border-slate-600 rounded shadow-xl p-2.5 text-xs pointer-events-none z-50 w-44 text-slate-300 transition-opacity duration-150"></div>
+      <div id="tooltip" class="absolute hidden bg-slate-800 border border-slate-600 rounded shadow-xl p-2.5 text-xs pointer-events-none z-50 w-48 text-slate-300 transition-opacity duration-150"></div>
     </main>
 
-    <div class="resizer" id="resizerRight"></div>
+    <div class="resizer no-touch" id="resizerRight"></div>
 
-    <aside id="rightPanel" class="w-[240px] bg-panel flex flex-col z-20 shrink-0">
-      <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider flex justify-between items-center">
+    <aside id="rightPanel" class="w-[260px] bg-panel flex flex-col z-20 shrink-0 h-full border-l border-slate-800">
+      <div class="p-2 border-b border-slate-700 font-bold text-[10px] text-slate-400 uppercase tracking-wider flex justify-between items-center bg-slate-800/50">
         <span>Inspector</span>
-        <span id="insType" class="text-indigo-400 bg-indigo-900/30 px-1.5 py-0.5 rounded">NONE</span>
+        <span id="insType" class="text-indigo-400 bg-indigo-900/40 px-1.5 py-0.5 rounded border border-indigo-700/50">NONE</span>
       </div>
       
-      <div id="inspectorPanel" class="p-3 overflow-y-auto flex-1 text-[11px] font-mono">
-        <!-- Empty State -->
-        <div id="inspector-none" class="text-center py-10 text-slate-500 font-sans text-xs">
+      <div id="inspectorPanel" class="p-4 overflow-y-auto flex-1 text-[11px] font-sans">
+        <div id="inspector-none" class="text-center py-10 text-slate-500 text-xs">
           Select an element to inspect and edit.<br><br><b>R</b> to rotate.<br><b>Del</b> to remove.
         </div>
 
-        <!-- Stable Form State (Never destroyed, preserves focus) -->
-        <div id="inspector-form" class="hidden flex flex-col gap-3">
+        <div id="inspector-form" class="hidden flex flex-col gap-4">
           
           <div id="wrap-name">
-            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider">Identifier Name</label>
-            <input id="prop-name" type="text" oninput="updateParam('name', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Identifier Name</label>
+            <input id="prop-name" type="text" oninput="updateParam('name', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-slate-200 transition">
           </div>
 
           <div id="wrap-kv" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider">Voltage Level</label>
-            <select id="prop-kv" onchange="updateParam('kv', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Voltage Level</label>
+            <select id="prop-kv" onchange="updateParam('kv', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 outline-none text-slate-200 transition">
               <option value="500">500 kV (Blue)</option>
               <option value="230">230 kV (Red)</option>
               <option value="138">138 kV (Orange)</option>
@@ -192,45 +195,43 @@
           </div>
 
           <div id="wrap-len" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider">Bus Length (px)</label>
-            <input id="prop-len" type="number" oninput="updateParam('len', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Bus Length (px)</label>
+            <input id="prop-len" type="number" oninput="updateParam('len', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 outline-none text-slate-200 transition">
           </div>
 
           <div id="wrap-pmw" class="hidden">
-            <label id="lbl-pmw" class="block font-bold text-slate-400 mb-1 uppercase tracking-wider">Active Power (MW)</label>
-            <input id="prop-pmw" type="number" oninput="updateParam('pMW', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label id="lbl-pmw" class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Active Power (MW)</label>
+            <input id="prop-pmw" type="number" oninput="updateParam('pMW', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 outline-none text-slate-200 transition">
           </div>
 
           <div id="wrap-maxmw" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider">Max Capacity (MW)</label>
-            <input id="prop-maxmw" type="number" oninput="updateParam('maxMW', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Max Capacity (MW)</label>
+            <input id="prop-maxmw" type="number" oninput="updateParam('maxMW', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 outline-none text-slate-200 transition">
           </div>
 
           <div id="wrap-xpu" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider">Reactance (X p.u.)</label>
-            <input id="prop-xpu" type="number" oninput="updateParam('xpu', Number(this.value))" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Reactance (X p.u.)</label>
+            <input id="prop-xpu" type="number" oninput="updateParam('xpu', Number(this.value))" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 outline-none text-slate-200 transition">
           </div>
 
           <div id="wrap-limit" class="hidden">
-            <label class="block font-bold text-slate-400 mb-1 uppercase tracking-wider">Thermal Limit (MW)</label>
-            <input id="prop-limit" type="number" oninput="updateParam('limit', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 focus:border-indigo-500 outline-none text-slate-200 transition">
+            <label class="block font-bold text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Thermal Limit (MW)</label>
+            <input id="prop-limit" type="number" oninput="updateParam('limit', Number(this.value))" class="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-2 focus:border-indigo-500 outline-none text-slate-200 transition">
           </div>
 
-          <div id="wrap-rotate" class="hidden mt-2">
-            <button id="btn-rotate" onclick="toggleRotate()" class="w-full bg-slate-800 hover:bg-slate-700 py-1.5 rounded border border-slate-600 transition flex justify-center items-center gap-1.5">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          <div id="wrap-rotate" class="hidden mt-1">
+            <button id="btn-rotate" onclick="toggleRotate()" class="w-full bg-slate-800 hover:bg-slate-700 py-2 rounded border border-slate-600 transition flex justify-center items-center gap-2 font-medium">
               <span id="txt-rotate">Orientation</span>
             </button>
           </div>
 
-          <div id="wrap-breaker" class="hidden mt-2">
-            <button id="btn-breaker" onclick="toggleBreaker()" class="w-full py-2 font-bold rounded border shadow-sm transition"></button>
+          <div id="wrap-breaker" class="hidden mt-1">
+            <button id="btn-breaker" onclick="toggleBreaker()" class="w-full py-2.5 font-bold rounded border shadow-sm transition tracking-wider text-xs"></button>
           </div>
 
-          <div class="mt-2 pt-3 border-t border-slate-700">
-            <button onclick="deleteElement()" class="w-full bg-red-900/20 text-red-500 hover:bg-red-900/40 py-1.5 rounded border border-red-900/50 transition font-bold flex justify-center items-center gap-1">
-               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-               Delete Element
+          <div class="mt-4 pt-4 border-t border-slate-700/80">
+            <button onclick="deleteElement()" class="w-full bg-red-900/20 text-red-500 hover:bg-red-900/40 py-2 rounded border border-red-900/50 transition font-bold flex justify-center items-center gap-1.5">
+               Delete Selected Element
             </button>
           </div>
         </div>
@@ -239,11 +240,9 @@
 
   </div>
 
-  <!-- Toast Container -->
-  <div id="toastContainer" class="absolute top-12 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none"></div>
+  <div id="toastContainer" class="absolute top-16 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <script>
-    // System Constants & State
     const V_COLORS = { '500':'#0000FF', '230':'#ED3237', '138':'#F58220', '69':'#66FFFF', '40':'#66CC33', '7':'#993399' };
     let state = { buses: [], components: [], wires: [] };
     
@@ -251,12 +250,11 @@
     let selectedId = null;
     let selectedType = null; 
     let wireSourceTerm = null; 
-    let currentHoverId = null;
+    
     let vp = { x: 50, y: 50, scale: 1, isDragging: false, startX: 0, startY: 0 };
     let dragElement = null; 
     let snapTarget = null; 
 
-    // DOM Utilities
     const $ = id => document.getElementById(id);
     const genId = prefix => prefix + '_' + Math.random().toString(36).substr(2, 6).toUpperCase();
     const createSVG = (tag, attrs) => {
@@ -268,22 +266,21 @@
     function showToast(msg, type='info') {
       const colors = type==='error'?'bg-red-900 border-red-500 text-red-200' : 'bg-emerald-900 border-emerald-500 text-emerald-200';
       const t = document.createElement('div');
-      t.className = `toast px-3 py-1.5 rounded border ${colors} shadow-lg text-xs font-medium`;
+      t.className = `toast px-4 py-2 rounded border ${colors} shadow-lg text-sm font-medium z-50`;
       t.innerText = msg;
       $('toastContainer').appendChild(t);
       setTimeout(() => t.remove(), 3000);
     }
 
-    // Getters
     const getBus = id => state.buses.find(b => b.id === id);
     const getComp = id => state.components.find(c => c.id === id);
 
-    // Resizer Logic (Draggable Gutters)
     function initSplitters() {
       let isResizing = null;
-      $('resizerLeft').onmousedown = e => { isResizing = 'left'; e.preventDefault(); };
-      $('resizerRight').onmousedown = e => { isResizing = 'right'; e.preventDefault(); };
-      window.addEventListener('mousemove', e => {
+      $('resizerLeft').addEventListener('pointerdown', e => { isResizing = 'left'; e.preventDefault(); $('resizerLeft').setPointerCapture(e.pointerId); });
+      $('resizerRight').addEventListener('pointerdown', e => { isResizing = 'right'; e.preventDefault(); $('resizerRight').setPointerCapture(e.pointerId); });
+      
+      window.addEventListener('pointermove', e => {
         if (!isResizing) return;
         if (isResizing === 'left') {
           let w = e.clientX;
@@ -293,11 +290,10 @@
           if (w > 150 && w < 500) $('rightPanel').style.width = w + 'px';
         }
       });
-      window.addEventListener('mouseup', () => isResizing = null);
+      window.addEventListener('pointerup', () => isResizing = null);
     }
     initSplitters();
 
-    // Wiring Coordinates Math
     function getRawTerminalPos(termId) {
       if(getBus(termId)) return { isBus: true, busId: termId, type: 'BUS' };
       let [compId, port] = termId.split('_T');
@@ -338,9 +334,9 @@
     }
 
     function findSnapTarget(mx, my) {
-      let best = null; let minDist = 225; // 15px radius squared
+      let best = null; let minDist = 250; // slightly larger snap radius for touch
       state.buses.forEach(b => {
-        let hw = b.rot === 'H' ? b.len / 2 : 6, hh = b.rot === 'H' ? 6 : b.len / 2;
+        let hw = b.rot === 'H' ? b.len / 2 : 8, hh = b.rot === 'H' ? 8 : b.len / 2;
         let cx = Math.max(b.x - hw, Math.min(mx, b.x + hw)), cy = Math.max(b.y - hh, Math.min(my, b.y + hh));
         let d2 = dist2({x:mx, y:my}, {x:cx, y:cy});
         if(d2 < minDist) { minDist = d2; best = { type: 'term', id: b.id, x: cx, y: cy }; }
@@ -354,7 +350,7 @@
         }
       });
       if(best) return best;
-      minDist = 100;
+      minDist = 150;
       state.wires.forEach(w => {
         if(wireSourceTerm && (w.src === wireSourceTerm || w.tgt === wireSourceTerm)) return; 
         let c = resolveWireCoordinates(w.src, w.tgt);
@@ -374,7 +370,6 @@
       return null; 
     }
 
-    // DC Power Flow Solver Engine
     function solvePowerFlow() {
       let totalGen = 0, totalLoad = 0;
       let parent = {};
@@ -410,7 +405,6 @@
       $('lblLoad').textContent = totalLoad.toFixed(1) + ' MW';
       $('lblLoss').textContent = Math.max(0, (totalGen - totalLoad)).toFixed(1) + ' MW';
 
-      // BFS Energization
       let q = Object.values(nodeMap).filter(n => n.energized);
       while(q.length > 0) {
         let curr = q.shift();
@@ -420,7 +414,6 @@
         });
       }
 
-      // Gauss-Seidel Math
       let activeNodes = Object.values(nodeMap).filter(n => n.energized);
       if(activeNodes.length > 0) {
         let slacks = activeNodes.filter(n => n.isSlack);
@@ -444,7 +437,6 @@
         }
       }
 
-      // Map back to canvas
       state.components.forEach(c => { c.pFlow = 0; c.energized = false; });
       state.buses.forEach(b => b.energized = nodeMap[find(b.id)]?.energized || false);
 
@@ -456,29 +448,24 @@
       state.components.forEach(c => { if(['GEN', 'LOAD'].includes(c.type)) c.energized = nodeMap[find(`${c.id}_T1`)]?.energized || false; });
     }
 
-    // Canvas Graphics Renderer
     function render() {
       solvePowerFlow();
       const layers = { wires: $('layer-wires'), flow: $('layer-flow'), comps: $('layer-components'), buses: $('layer-buses'), labels: $('layer-live-labels') };
       for(let k in layers) layers[k].innerHTML = '';
 
-      // Wires
       state.wires.forEach(w => {
         let c = resolveWireCoordinates(w.src, w.tgt);
         layers.wires.appendChild(createSVG('line', { x1: c.x1, y1: c.y1, x2: c.x2, y2: c.y2, stroke: '#64748b', 'stroke-width': 2.5 }));
       });
 
-      // Buses
       state.buses.forEach(b => {
         const isSel = (selectedType === 'BUS' && selectedId === b.id);
         const w = b.rot === 'H' ? b.len : 12, h = b.rot === 'H' ? 12 : b.len;
         const color = b.energized ? (V_COLORS[b.kv] || '#888') : '#475569';
         
-        let g = createSVG('g', { class: 'cursor-move hover:brightness-110 transition-all' });
-        g.onmousedown = e => startDrag(e, 'BUS', b.id);
-        g.onclick = e => selectElement(e, 'BUS', b.id);
-        g.onmouseenter = e => showHoverTooltip(e, 'BUS', b.id);
-        g.onmouseleave = hideHoverTooltip;
+        let g = createSVG('g', { class: 'pointer-events-auto cursor-pointer hover:brightness-110 transition-all' });
+        // Use pointerdown to ensure it works on iPad
+        g.addEventListener('pointerdown', e => startDrag(e, 'BUS', b.id));
 
         g.appendChild(createSVG('rect', { x: b.x - w/2, y: b.y - h/2, width: w, height: h, rx: 3, fill: color, stroke: isSel ? '#ffffff' : 'none', 'stroke-width': 3 }));
         if(b.len > 20) {
@@ -488,16 +475,12 @@
         layers.buses.appendChild(g);
       });
 
-      // Components
       state.components.forEach(c => {
         const isSel = (selectedType === 'COMP' && selectedId === c.id);
-        let gMain = createSVG('g', { transform: `translate(${c.x}, ${c.y})`, class: 'cursor-pointer hover:drop-shadow-lg transition-all' });
+        let gMain = createSVG('g', { transform: `translate(${c.x}, ${c.y})`, class: 'pointer-events-auto cursor-pointer hover:drop-shadow-lg transition-all' });
         let gRot = createSVG('g', { transform: c.rot === 'V' ? 'rotate(90)' : 'rotate(0)' });
         gMain.appendChild(gRot);
-        gMain.onmousedown = e => startDrag(e, 'COMP', c.id);
-        gMain.onclick = e => selectElement(e, 'COMP', c.id);
-        gMain.onmouseenter = e => showHoverTooltip(e, 'COMP', c.id);
-        gMain.onmouseleave = hideHoverTooltip;
+        gMain.addEventListener('pointerdown', e => startDrag(e, 'COMP', c.id));
 
         if(isSel) gRot.appendChild(createSVG('rect', { x: -35, y: -25, width: 70, height: 50, rx: 6, fill: 'none', stroke: '#818cf8', 'stroke-width': 2, 'stroke-dasharray': '4 4' }));
 
@@ -522,7 +505,7 @@
           t.textContent = isOpen ? 'O' : 'C'; gRot.appendChild(t);
         }
 
-        const drawTerm = (x, y) => gRot.appendChild(createSVG('circle', { cx: x, cy: y, r: 3.5, fill: '#94a3b8' }));
+        const drawTerm = (x, y) => gRot.appendChild(createSVG('circle', { cx: x, cy: y, r: 4, fill: '#94a3b8' }));
         if(['GEN', 'LOAD'].includes(c.type)) drawTerm(0, -18);
         else { drawTerm(-24, 0); drawTerm(24, 0); }
 
@@ -550,18 +533,19 @@
       });
     }
 
-    // Core Interactions
     const container = $('viewportContainer');
+    
     function setMode(newMode) {
       mode = newMode; wireSourceTerm = null; snapTarget = null;
       $('snapIndicator').classList.add('hidden'); $('activeWire').classList.add('hidden');
-      $('btnSelect').className = `px-2.5 py-1 rounded font-medium transition flex items-center gap-1 ${mode==='SELECT' ? 'bg-indigo-600 text-white shadow-lg' : 'border border-slate-600 hover:bg-slate-700 text-slate-300'}`;
-      $('btnWire').className = `px-2.5 py-1 rounded font-medium transition relative flex items-center gap-1 ${mode==='WIRE' ? 'bg-indigo-600 text-white shadow-lg' : 'border border-slate-600 hover:bg-slate-700 text-slate-300'}`;
+      $('btnSelect').className = `px-3 py-1.5 rounded font-medium transition flex items-center gap-1 ${mode==='SELECT' ? 'bg-indigo-600 text-white shadow-lg' : 'border border-slate-600 hover:bg-slate-700 text-slate-300'}`;
+      $('btnWire').className = `px-3 py-1.5 rounded font-medium transition relative flex items-center gap-1 ${mode==='WIRE' ? 'bg-indigo-600 text-white shadow-lg' : 'border border-slate-600 hover:bg-slate-700 text-slate-300'}`;
       $('wireBadge').style.display = mode==='WIRE' ? 'block' : 'none';
     }
 
     function spawnComponent(type) {
-      let x = -vp.x / vp.scale + 200, y = -vp.y / vp.scale + 200;
+      let x = -vp.x / vp.scale + (container.clientWidth / 2);
+      let y = -vp.y / vp.scale + (container.clientHeight / 2);
       if(type === 'BUS') state.buses.push({ id: genId('B'), name: `Bus ${state.buses.length+1}`, x, y, len: 150, rot: 'H', kv: '230' });
       else {
         let comp = { id: genId('C'), type, name: `${type} ${state.components.length+1}`, x, y, rot: 'H' };
@@ -574,11 +558,9 @@
       setMode('SELECT'); render();
     }
 
-    function selectElement(e, type, id) {
-      e.stopPropagation();
-      if(mode === 'WIRE') { handleWiring(type, id, e.clientX, e.clientY); return; }
+    function selectElement(type, id) {
       selectedType = type; selectedId = id;
-      populateInspector(); // Bind inputs without destroying DOM
+      populateInspector();
       render();
     }
 
@@ -596,11 +578,9 @@
       let el = selectedType === 'BUS' ? getBus(selectedId) : getComp(selectedId);
       $('insType').textContent = selectedType === 'BUS' ? 'BUSBAR' : el.type;
       
-      // Reset visibility
       const fields = ['wrap-kv', 'wrap-len', 'wrap-pmw', 'wrap-maxmw', 'wrap-xpu', 'wrap-limit', 'wrap-rotate', 'wrap-breaker'];
       fields.forEach(f => $(f).classList.add('hidden'));
 
-      // Populate Name
       $('prop-name').value = el.name || '';
 
       if (selectedType === 'BUS') {
@@ -653,10 +633,10 @@
     function updateBreakerButton(status) {
       const btn = $('btn-breaker');
       if (status === 'CLOSED') {
-         btn.className = "w-full py-2 font-bold rounded border shadow-sm transition bg-red-900/30 text-red-400 border-red-800";
+         btn.className = "w-full py-2.5 font-bold rounded border shadow-sm transition tracking-wider text-xs bg-red-900/30 text-red-400 border-red-800";
          btn.textContent = "TRIP (OPEN)";
       } else {
-         btn.className = "w-full py-2 font-bold rounded border shadow-sm transition bg-green-900/30 text-green-400 border-green-800";
+         btn.className = "w-full py-2.5 font-bold rounded border shadow-sm transition tracking-wider text-xs bg-green-900/30 text-green-400 border-green-800";
          btn.textContent = "CLOSE BREAKER";
       }
     }
@@ -666,10 +646,9 @@
       state.wires = state.wires.filter(w => !w.src.startsWith(selectedId) && !w.tgt.startsWith(selectedId));
       if(selectedType === 'BUS') state.buses = state.buses.filter(b => b.id !== selectedId);
       else state.components = state.components.filter(c => c.id !== selectedId);
-      selectedId = null; hideHoverTooltip(); populateInspector(); render();
+      selectedId = null; populateInspector(); render();
     };
 
-    // Wiring Logic (T-Tap preserved)
     function handleWiring(type, id, cx, cy) {
       if(!wireSourceTerm) {
         if(snapTarget && snapTarget.type === 'term') wireSourceTerm = snapTarget.id;
@@ -700,12 +679,33 @@
       }
     }
 
-    // Mouse & Keyboard Interactions
-    container.addEventListener('mousedown', e => {
+    function startDrag(e, type, id) {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      if(mode === 'WIRE') {
+        handleWiring(type, id, e.clientX, e.clientY);
+        return;
+      }
+      
+      if(mode !== 'SELECT') return;
+      
+      let el = type === 'BUS' ? getBus(id) : getComp(id);
+      let rect = container.getBoundingClientRect();
+      let mx = (e.clientX - rect.left - vp.x) / vp.scale;
+      let my = (e.clientY - rect.top - vp.y) / vp.scale;
+      dragElement = { obj: el, offsetX: el.x - mx, offsetY: el.y - my };
+      selectElement(type, id);
+      
+      container.setPointerCapture(e.pointerId);
+    }
+
+    container.addEventListener('pointerdown', e => {
       if(e.target.tagName === 'svg' || e.target.id === 'viewportContainer') {
         if(mode === 'SELECT') {
           vp.isDragging = true; vp.startX = e.clientX - vp.x; vp.startY = e.clientY - vp.y;
           selectedId = null; selectedType = null; populateInspector(); render();
+          container.setPointerCapture(e.pointerId);
         } else if (mode === 'WIRE' && snapTarget && snapTarget.type === 'wire' && wireSourceTerm) {
           handleWiring(null, null, e.clientX, e.clientY);
         } else if (mode === 'WIRE' && wireSourceTerm) {
@@ -714,18 +714,7 @@
       }
     });
 
-    function startDrag(e, type, id) {
-      if(mode !== 'SELECT') return;
-      e.stopPropagation();
-      let el = type === 'BUS' ? getBus(id) : getComp(id);
-      let rect = container.getBoundingClientRect();
-      let mx = (e.clientX - rect.left - vp.x) / vp.scale;
-      let my = (e.clientY - rect.top - vp.y) / vp.scale;
-      dragElement = { obj: el, offsetX: el.x - mx, offsetY: el.y - my };
-      selectElement(e, type, id);
-    }
-
-    window.addEventListener('mousemove', e => {
+    window.addEventListener('pointermove', e => {
       let rect = container.getBoundingClientRect();
       let mx = (e.clientX - rect.left - vp.x) / vp.scale, my = (e.clientY - rect.top - vp.y) / vp.scale;
 
@@ -747,18 +736,22 @@
           aw.setAttribute('x2', snapTarget ? snapTarget.x : mx); aw.setAttribute('y2', snapTarget ? snapTarget.y : my); aw.classList.remove('hidden');
         }
       }
-      if(currentHoverId) { let tt = $('tooltip'); tt.style.left = (e.clientX + 15) + 'px'; tt.style.top = (e.clientY + 15) + 'px'; }
     });
 
-    window.addEventListener('mouseup', () => { vp.isDragging = false; dragElement = null; });
+    window.addEventListener('pointerup', e => { 
+      vp.isDragging = false; 
+      dragElement = null; 
+      try { container.releasePointerCapture(e.pointerId); } catch(err) {} 
+    });
+
     container.addEventListener('wheel', e => {
       e.preventDefault();
       let oldScale = vp.scale;
-      vp.scale = Math.min(Math.max(0.1, vp.scale + (e.deltaY < 0 ? 0.05 : -0.05)), 4);
+      vp.scale = Math.min(Math.max(0.2, vp.scale + (e.deltaY < 0 ? 0.05 : -0.05)), 3);
       let rect = container.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top;
       vp.x = mx - (mx - vp.x) * (vp.scale / oldScale); vp.y = my - (my - vp.y) * (vp.scale / oldScale);
       $('transformGroup').setAttribute('transform', `translate(${vp.x}, ${vp.y}) scale(${vp.scale})`);
-    });
+    }, { passive: false });
 
     window.addEventListener('keydown', e => {
       if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
@@ -768,21 +761,6 @@
       else if (e.key === 'Delete' || e.key === 'Backspace') deleteElement();
     });
 
-    function showHoverTooltip(e, type, id) {
-      if(mode === 'WIRE' || vp.isDragging || dragElement) return;
-      currentHoverId = id; const tt = $('tooltip'); let html = '';
-      if(type === 'BUS') {
-        let b = getBus(id); html = `<strong>${b.name}</strong><br><span class="text-slate-400">Type: Busbar (${b.kv}kV)</span><br>Status: ${b.energized?'<span class="text-green-400">Energized</span>':'<span class="text-slate-500">Dead</span>'}`;
-      } else {
-        let c = getComp(id); html = `<strong>${c.name}</strong><br><span class="text-slate-400">Type: ${c.type}</span><br>Status: ${c.energized?'<span class="text-green-400">Live</span>':'<span class="text-slate-500">Dead</span>'}`;
-        if(c.type === 'GEN') html += `<br>Gen: ${c.pMW} / ${c.maxMW} MW`; if(c.type === 'LOAD') html += `<br>Demand: ${c.pMW} MW`;
-        if(['LINE', 'XFMR'].includes(c.type)) html += `<br>Flow: ${Math.abs(c.pFlow||0).toFixed(1)} MW<br>Limit: ${c.limit} MW`;
-      }
-      tt.innerHTML = html; tt.style.left = (e.clientX + 15) + 'px'; tt.style.top = (e.clientY + 15) + 'px'; tt.classList.remove('hidden');
-    }
-    function hideHoverTooltip() { currentHoverId = null; $('tooltip').classList.add('hidden'); }
-
-    // System I/O
     function exportData() {
       const a = document.createElement('a');
       a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
