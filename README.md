@@ -2,7 +2,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Advanced SLD Market Network Simulator - Nodal DC Power Flow</title>
+    <title>Advanced SLD Market Network Simulator - Refined Nodal DC Power Flow</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
         body, html { width: 100%; height: 100%; overflow: hidden; background: #0b0f19; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #f3f4f6; }
@@ -81,7 +81,7 @@
     <header>
         <div class="logo-area">
             <span>⚡ RTO NODAL DC POWER FLOW SOLVER</span>
-            <span class="logo-badge">NODAL v5.0</span>
+            <span class="logo-badge">NODAL v5.1</span>
         </div>
         <div class="header-tools">
             <button class="btn active" id="btn-select" title="Select & Move (V)">
@@ -202,7 +202,7 @@
 
 <script>
 /**
- * RTO Nodal DC Power Flow Solver v5.0
+ * RTO Nodal DC Power Flow Solver v5.1
  */
 const VoltageColors = {
     "500 kV": "#3b82f6",
@@ -669,17 +669,10 @@ class SLDApp {
             deficitRow.style.display = 'none';
         }
 
-        // --- RIGOROUS NODAL DC POWER FLOW SOLVER ---
-        // 1. Map all nodes and build connectivity index
+        // --- REFINED NODAL DC POWER FLOW SOLVER ---
         const nodeMap = {};
         this.model.nodes.forEach(n => nodeMap[n.id] = n);
 
-        // 2. Aggregate active power injections P_i at each Bus (Generators - Loads)
-        const busP = {};
-        this.model.nodes.filter(n => n.type === 'bus').forEach(b => busP[b.id] = 0);
-
-        // Trace connections through transmission elements (wires, breakers, transformers)
-        // To handle multi-hop connections (e.g. Gen -> Breaker -> Bus), we find the electrical island / root bus for each equipment.
         const findRootBus = (startId) => {
             let visited = new Set();
             let queue = [startId];
@@ -691,21 +684,21 @@ class SLDApp {
                 if (!node) continue;
                 if (node.type === 'bus') return node.id;
 
-                // Traverse closed wires/breakers/transformers connected to curr
                 this.model.wires.forEach(w => {
                     if (w.status === 'closed') {
                         if (w.from === curr && !visited.has(w.to)) queue.push(w.to);
                         if (w.to === curr && !visited.has(w.from)) queue.push(w.from);
                     }
                 });
-                // Also check adjacent equipment connected via wires
             }
             return null;
         };
 
+        const busP = {};
+        this.model.nodes.filter(n => n.type === 'bus').forEach(b => busP[b.id] = 0);
+
         generators.forEach(g => {
             if (g.status !== 'closed') return;
-            // find connected bus
             const targetBusId = findRootBus(g.id);
             if (targetBusId && busP[targetBusId] !== undefined) {
                 busP[targetBusId] += (g.mw || 0);
@@ -720,22 +713,17 @@ class SLDApp {
             }
         });
 
-        // 3. Build Admittance Matrix B for Bus Network
         const buses = this.model.nodes.filter(n => n.type === 'bus');
         const busIds = buses.map(b => b.id);
         const numBuses = busIds.length;
 
         if (numBuses === 0) return;
 
-        // Initialize B matrix and P vector
         let B = Array(numBuses).fill(0).map(() => Array(numBuses).fill(0));
         let P = busIds.map(id => busP[id] || 0);
 
-        // Populate B matrix from transmission lines / transformers / wires connecting buses directly or via active devices
-        // For simplicity and robustness in arbitrary topologies, we map branch susceptances B_ij = 1 / X_ij
         this.model.wires.forEach(w => {
             if (w.status === 'open') return;
-            // Find bus endpoints for this wire
             const busA = findRootBus(w.from);
             const busB = findRootBus(w.to);
             if (busA && busB && busA !== busB) {
@@ -752,11 +740,8 @@ class SLDApp {
             }
         });
 
-        // 4. Solve B * theta = P for voltage angles theta (using slack bus at index 0 where theta_0 = 0)
-        // We use Gaussian elimination / matrix reduction for exact nodal solution
         let theta = Array(numBuses).fill(0);
         if (numBuses > 1) {
-            // Reduced system (excluding slack bus 0)
             const nSub = numBuses - 1;
             let B_sub = Array(nSub).fill(0).map(() => Array(nSub).fill(0));
             let P_sub = Array(nSub).fill(0);
@@ -766,26 +751,23 @@ class SLDApp {
                 for (let j = 0; j < nSub; j++) {
                     B_sub[i][j] = B[i + 1][j + 1];
                 }
-                // Add small diagonal regularization to prevent singular matrix errors in unlinked topologies
-                B_sub[i][i] += 1e-5;
+                B_sub[i][i] += 1e-4; // Regularization
             }
 
-            // Simple Gaussian elimination solver for B_sub * theta_sub = P_sub
             let theta_sub = GaussianElimination(B_sub, P_sub);
             for (let i = 0; i < nSub; i++) {
                 theta[i + 1] = theta_sub[i];
             }
         }
 
-        // Map theta back to bus IDs
         const busTheta = {};
         busIds.forEach((id, idx) => busTheta[id] = theta[idx]);
 
-        // 5. Calculate power flow on every wire/branch: P_ij = (theta_i - theta_j) / X_ij
         this.model.wires.forEach(w => {
             if (w.status === 'open') {
                 w.flow = 0;
                 w.loading = 0;
+                w.direction = 1;
                 return;
             }
             const busA = findRootBus(w.from);
@@ -795,17 +777,23 @@ class SLDApp {
                 const thA = busTheta[busA] || 0;
                 const thB = busTheta[busB] || 0;
                 const x = Math.max(0.001, w.reactance || 0.03);
-                const flow = Math.abs((thA - thB) / x);
-                w.flow = isNaN(flow) ? 0 : flow;
+                
+                // Signed power flow from node 'from' to 'to'
+                const rawFlow = (busTheta[findRootBus(w.from) || ''] || 0) - (busTheta[findRootBus(w.to) || ''] || 0);
+                const signedFlow = rawFlow / x;
+                
+                w.flow = Math.abs(signedFlow);
+                w.direction = signedFlow >= 0 ? 1 : -1;
             } else {
-                // Feeder line directly connected to gen or load
                 const connectedNodeId = busA || busB;
                 const otherId = (w.from === connectedNodeId) ? w.to : w.from;
                 const otherNode = nodeMap[otherId];
                 if (otherNode && (otherNode.type === 'generator' || otherNode.type === 'load')) {
                     w.flow = otherNode.mw || 0;
+                    w.direction = otherNode.type === 'generator' ? 1 : -1;
                 } else {
                     w.flow = 5.0;
+                    w.direction = 1;
                 }
             }
 
@@ -979,10 +967,14 @@ class SLDApp {
             ctx.stroke();
             ctx.setLineDash([]);
 
+            // Animated flow particles flowing in correct direction
             if (w.status === 'closed' && (w.flow || 0) > 0) {
                 const particleCount = 3;
+                const dir = w.direction || 1;
                 for (let i = 0; i < particleCount; i++) {
-                    const t = ((this.animPhase * 0.015 + i / particleCount) % 1);
+                    // Adjust phase offset based on direction
+                    const tVal = dir > 0 ? (this.animPhase * 0.015 + i / particleCount) : (1.0 - ((this.animPhase * 0.015 + i / particleCount) % 1));
+                    const t = tVal % 1;
                     let px, py;
                     if (t < 0.5) {
                         const st = t * 2;
@@ -1163,7 +1155,6 @@ class SLDApp {
     }
 }
 
-// Gaussian elimination helper for Nodal DC Power Flow Matrix solution
 function GaussianElimination(A, b) {
     let n = b.length;
     for (let i = 0; i < n; i++) {
