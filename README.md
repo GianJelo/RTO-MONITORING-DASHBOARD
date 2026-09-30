@@ -30,10 +30,10 @@
         .sidebar-left { width: 260px; background: #111827; border-right: 1px solid #1f2937; display: flex; flex-direction: column; flex-shrink: 0; z-index: 5; }
         .panel-section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #9ca3af; letter-spacing: 0.8px; padding: 10px 12px 6px 12px; }
         .palette-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 8px 12px; }
-        .palette-item { background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: grab; transition: all 0.2s; }
+        .palette-item { background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; transition: all 0.2s; touch-action: manipulation; }
         .palette-item:hover { background: #374151; border-color: #60a5fa; transform: translateY(-1px); }
         .palette-item span { font-size: 11px; color: #d1d5db; font-weight: 500; }
-        .palette-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+        .palette-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; pointer-events: none; }
 
         .telemetry-box { background: #0f172a; border-top: 1px solid #1f2937; padding: 12px; margin-top: auto; font-size: 11px; display: flex; flex-direction: column; gap: 6px; }
         .telemetry-row { display: flex; justify-content: space-between; align-items: center; }
@@ -81,7 +81,7 @@
     <header>
         <div class="logo-area">
             <span>⚡ RTO SLD MARKET NETWORK SIMULATOR</span>
-            <span class="logo-badge">ULTIMATE v3.4</span>
+            <span class="logo-badge">ULTIMATE v3.5</span>
         </div>
         <div class="header-tools">
             <button class="btn active" id="btn-select" title="Select & Move (V)">
@@ -103,7 +103,7 @@
     <div class="workspace">
         <!-- Left Sidebar: Palette & Telemetry -->
         <div class="sidebar-left">
-            <div class="panel-section-title">Grid Elements Palette</div>
+            <div class="panel-section-title">Grid Elements Palette (Tap/Click to Add)</div>
             <div class="palette-grid">
                 <div class="palette-item" draggable="true" data-type="bus">
                     <div class="palette-icon"><svg width="24" height="24" viewBox="0 0 24 24"><rect x="2" y="10" width="20" height="4" rx="2" fill="#ef4444"/></svg></div>
@@ -202,7 +202,7 @@
 
 <script>
 /**
- * RTO Market Network Simulator - Ultimate Edition
+ * RTO Market Network Simulator - Ultimate Edition v3.5
  */
 const VoltageColors = {
     "500 kV": "#3b82f6",
@@ -221,7 +221,6 @@ class NetworkModel {
     }
 
     loadSample() {
-        // Sample Bohol-style Market Network
         this.nodes = [
             { id: "b1", type: "bus", name: "CORELLA 230kV", x: 250, y: 150, width: 180, height: 16, voltage: "230 kV", orientation: "H" },
             { id: "b2", type: "bus", name: "UBAY 138kV", x: 550, y: 150, width: 160, height: 16, voltage: "138 kV", orientation: "H" },
@@ -304,10 +303,21 @@ class SLDApp {
         container.addEventListener('pointerup', e => this.onPointerUp(e));
         container.addEventListener('wheel', e => this.onWheel(e), { passive: false });
 
-        // Palette drag and drop
+        // Palette Item Click / Tap & Drag support
         document.querySelectorAll('.palette-item').forEach(item => {
+            const type = item.dataset.type;
+
+            // Direct tap/click support for touch screens & Safari where HTML5 drag/drop fails
+            item.addEventListener('pointerdown', e => {
+                e.preventDefault();
+                const wx = (this.canvas.width / 2 - this.pan.x) / this.zoom;
+                const wy = (this.canvas.height / 2 - this.pan.y) / this.zoom;
+                this.addElement(type, wx, wy);
+            });
+
+            // Desktop HTML5 drag start
             item.addEventListener('dragstart', e => {
-                e.dataTransfer.setData('text/plain', item.dataset.type);
+                e.dataTransfer.setData('text/plain', type);
             });
         });
 
@@ -412,7 +422,7 @@ class SLDApp {
 
     addElement(type, x, y) {
         const id = 'el_' + Math.random().toString(36).substr(2, 6);
-        let newNode = { id, type, name: `${type.toUpperCase()}_${this.model.nodes.length + 1}`, x: x - 25, y: y - 25, status: 'closed' };
+        let newNode = { id, type, name: `${type.toUpperCase()}_${this.model.nodes.length + 1}`, x: x, y: y, status: 'closed' };
         
         if (type === 'bus') {
             newNode.width = 140;
@@ -473,7 +483,6 @@ class SLDApp {
             const n2 = this.model.nodes.find(n => n.id === w.to);
             if (!n1 || !n2) continue;
             
-            // Check distance to line segment
             const dist = this.distToSegment({x: wx, y: wy}, {x: n1.x, y: n1.y}, {x: n2.x, y: n2.y});
             if (dist < 8) return w;
         }
@@ -498,7 +507,6 @@ class SLDApp {
         this.mousePos = { x: wx, y: wy };
 
         if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
-            // Pan
             this.isPanning = true;
             this.dragStart = { x: cx, y: cy };
             return;
@@ -528,14 +536,8 @@ class SLDApp {
                 if (!this.wireStartNode) {
                     this.wireStartNode = clickedNode;
                 } else if (this.wireStartNode.id !== clickedNode.id) {
-                    // Create Wire (or auto-transformer if connecting two different voltage buses)
-                    let newType = 'wire';
-                    let reactance = 0.03;
-                    let limit = 100;
-
                     if (this.wireStartNode.type === 'bus' && clickedNode.type === 'bus') {
                         if (this.wireStartNode.voltage !== clickedNode.voltage) {
-                            // Auto insert transformer
                             const midX = (this.wireStartNode.x + clickedNode.x) / 2;
                             const midY = (this.wireStartNode.y + clickedNode.y) / 2;
                             const xfrId = 'el_' + Math.random().toString(36).substr(2, 6);
@@ -587,7 +589,6 @@ class SLDApp {
             this.selectedElement.y = wy - this.dragStart.y;
         }
 
-        // Tooltip check
         const hoveredNode = this.findNodeAt(wx, wy);
         const hoveredWire = !hoveredNode ? this.findWireAt(wx, wy) : null;
         const tt = document.getElementById('tooltip');
@@ -653,7 +654,6 @@ class SLDApp {
     }
 
     runPowerFlow() {
-        // DC Power Flow & System Balance Solver
         let totalGen = 0;
         let totalLoad = 0;
 
@@ -676,14 +676,12 @@ class SLDApp {
             deficitRow.style.display = 'none';
         }
 
-        // Compute simulated line flows based on connected components
         this.model.wires.forEach((w, idx) => {
             if (w.status === 'open') {
                 w.flow = 0;
                 w.loading = 0;
                 return;
             }
-            // Pseudo-DC power flow distribution estimation
             const seed = (idx + 1) * 7;
             const flowMag = ((totalLoad / Math.max(1, this.model.wires.length)) * 0.8) + (Math.sin(this.animPhase * 0.05 + seed) * 3);
             w.flow = Math.abs(flowMag);
@@ -770,7 +768,6 @@ class SLDApp {
 
         container.innerHTML = html;
 
-        // Bind inspector inputs without losing focus
         const bindInput = (id, prop, isFloat = false) => {
             const elInput = document.getElementById(id);
             if (elInput) {
@@ -834,10 +831,8 @@ class SLDApp {
         ctx.translate(this.pan.x, this.pan.y);
         ctx.scale(this.zoom, this.zoom);
 
-        // Draw grid background
         this.drawGridBackground();
 
-        // Draw Wires (Transmission Lines) with orthogonal routing and bridges
         this.model.wires.forEach(w => {
             const n1 = this.model.nodes.find(n => n.id === w.from);
             const n2 = this.model.nodes.find(n => n.id === w.to);
@@ -848,7 +843,6 @@ class SLDApp {
             
             ctx.beginPath();
             ctx.moveTo(n1.x, n1.y);
-            // Orthogonal routing with midpoint
             const midX = (n1.x + n2.x) / 2;
             ctx.lineTo(midX, n1.y);
             ctx.lineTo(midX, n2.y);
@@ -861,12 +855,10 @@ class SLDApp {
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Animated flow particles
             if (w.status === 'closed' && (w.flow || 0) > 0) {
                 const particleCount = 3;
                 for (let i = 0; i < particleCount; i++) {
                     const t = ((this.animPhase * 0.015 + i / particleCount) % 1);
-                    // Interpolate along path
                     let px, py;
                     if (t < 0.5) {
                         const st = t * 2;
@@ -889,7 +881,6 @@ class SLDApp {
                 }
             }
 
-            // Draw line flow label badge
             const labelX = midX;
             const labelY = (n1.y + n2.y) / 2;
             ctx.fillStyle = 'rgba(17, 24, 39, 0.85)';
@@ -905,7 +896,6 @@ class SLDApp {
             ctx.fillText(`${(w.flow || 0).toFixed(1)}M`, labelX, labelY);
         });
 
-        // Draw Wire-in-progress if wiring
         if (this.mode === 'wire' && this.wireStartNode) {
             ctx.beginPath();
             ctx.moveTo(this.wireStartNode.x, this.wireStartNode.y);
@@ -917,7 +907,6 @@ class SLDApp {
             ctx.setLineDash([]);
         }
 
-        // Draw Nodes (Equipment)
         this.model.nodes.forEach(n => {
             const isSelected = this.selectedElement && this.selectedElement.id === n.id;
             ctx.save();
@@ -936,7 +925,6 @@ class SLDApp {
                     ctx.strokeRect(-w/2 - 2, -h/2 - 2, w + 4, h + 4);
                 }
 
-                // Bus Name
                 ctx.fillStyle = '#f3f4f6';
                 ctx.font = 'bold 11px sans-serif';
                 ctx.textAlign = 'center';
