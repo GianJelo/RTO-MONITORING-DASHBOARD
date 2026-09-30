@@ -1,607 +1,1040 @@
-<html lang="en" class="dark">
+<html lang="en" class="h-full bg-slate-950 text-slate-100 dark select-none">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IEMOP Visayas Market Network Model (MNM) Full SLD & Flow Monitor</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        v500: '#8b5cf6', // 500 kV Purple
-                        v230: '#ef4444', // 230 kV Red
-                        v138: '#f97316', // 138 kV Orange
-                        v69:  '#06b6d4', // 69 kV Cyan
-                        v13:  '#10b981', // 13.8 kV Green
-                    }
-                }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SLD Power Grid Builder & Network Flow Simulator</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            grid: {
+              bg: '#0B0F17',
+              panel: '#111827',
+              border: '#1F2937',
+              bus230: '#EF4444',
+              bus138: '#F97316',
+              bus69: '#10B981',
+              bus13: '#3B82F6'
             }
+          },
+          fontFamily: {
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+            sans: ['Inter', 'system-ui', 'sans-serif']
+          }
         }
-    </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-
-        /* Power Flow Particle Animations */
-        .flow-line-normal {
-            stroke-dasharray: 6, 6;
-            animation: flowForward 1.2s linear infinite;
-        }
-        .flow-line-heavy {
-            stroke-dasharray: 8, 4;
-            animation: flowForward 0.7s linear infinite;
-        }
-        .flow-line-reverse {
-            stroke-dasharray: 6, 6;
-            animation: flowReverse 1.2s linear infinite;
-        }
-
-        @keyframes flowForward {
-            from { stroke-dashoffset: 24; }
-            to { stroke-dashoffset: 0; }
-        }
-        @keyframes flowReverse {
-            from { stroke-dashoffset: 0; }
-            to { stroke-dashoffset: 24; }
-        }
-
-        /* Glassmorphism Panel Overlay */
-        .glass-panel {
-            background: rgba(15, 23, 42, 0.88);
-            backdrop-filter: blur(10px);
-        }
-    </style>
+      }
+    }
+  </script>
+  <style>
+    @keyframes flowParticle {
+      from { stroke-dashoffset: 24; }
+      to { stroke-dashoffset: 0; }
+    }
+    .flow-line {
+      stroke-dasharray: 6, 6;
+      animation: flowParticle 0.7s linear infinite;
+    }
+    .flow-reverse {
+      animation-direction: reverse;
+    }
+    .bg-grid-dots {
+      background-image: radial-gradient(circle, #1e293b 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0b0f17; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col transition-colors duration-300">
+<body class="h-full flex flex-col font-sans overflow-hidden bg-grid-bg text-slate-200">
 
-    <!-- Header Navigation Bar -->
-    <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex flex-wrap justify-between items-center sticky top-0 z-50 shadow-lg">
-        <div class="flex items-center space-x-3">
-            <div class="bg-cyan-500/10 p-2 rounded-lg border border-cyan-500/30">
-                <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                </svg>
+  <header class="h-14 border-b border-grid-border bg-grid-panel px-4 flex items-center justify-between z-30 shrink-0">
+    <div class="flex items-center space-x-3">
+      <div class="p-2 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
+        <i class="ph-bold ph-circuit text-xl"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-slate-100 text-sm md:text-base flex items-center gap-2">
+          SLD NETWORK BUILDER & SOLVER
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">LIVE POWER FLOW</span>
+        </h1>
+        <p class="text-xs text-slate-400 hidden sm:block">Market Model Single Line Diagram Canvas & Auto-Solver</p>
+      </div>
+    </div>
+
+    <!-- Quick Actions Toolbar -->
+    <div class="flex items-center space-x-2">
+      <button id="wireToolBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+        <i class="ph-bold ph-line-segments text-base text-blue-400"></i>
+        <span id="wireToolText">Connect Mode (Off)</span>
+      </button>
+
+      <button id="solveFlowBtn" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg text-xs transition flex items-center gap-1.5 shadow-lg shadow-blue-600/20">
+        <i class="ph-bold ph-arrows-clockwise text-sm"></i>
+        <span>Solve Grid Flow</span>
+      </button>
+
+      <div class="h-5 w-px bg-slate-800 my-auto"></div>
+
+      <button id="loadSampleBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition flex items-center gap-1">
+        <i class="ph-bold ph-folder-open text-sm"></i> Sample 5-Bus
+      </button>
+
+      <button id="clearCanvasBtn" class="px-3 py-1.5 bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/40 rounded-lg text-xs transition flex items-center gap-1">
+        <i class="ph-bold ph-trash text-sm"></i> Clear
+      </button>
+
+      <button id="exportJsonBtn" class="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition" title="Export JSON">
+        <i class="ph-bold ph-download-simple text-base"></i>
+      </button>
+
+      <button id="importJsonBtn" class="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition" title="Import JSON">
+        <i class="ph-bold ph-upload-simple text-base"></i>
+      </button>
+      <input type="file" id="importFileInput" accept=".json" class="hidden">
+    </div>
+  </header>
+
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- Left Toolbar Palette -->
+    <aside class="w-64 border-r border-grid-border bg-grid-panel p-3 flex flex-col shrink-0 z-20 space-y-4">
+      <div>
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono mb-2">Grid Component Palette</h3>
+        <p class="text-[11px] text-slate-500 mb-3">Click any element below to drop it onto the canvas canvas area:</p>
+
+        <div class="space-y-2">
+          <button onclick="spawnElement('BUS')" class="w-full p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center justify-between text-xs transition group">
+            <div class="flex items-center gap-2.5">
+              <div class="w-6 h-1.5 bg-red-500 rounded"></div>
+              <span class="font-medium text-slate-200">Substation Bus</span>
             </div>
-            <div>
-                <div class="flex items-center space-x-2">
-                    <h1 class="text-base font-bold tracking-wide text-white">INDEPENDENT ELECTRICITY MARKET OPERATOR OF THE PHILIPPINES</h1>
-                    <span class="text-xs bg-cyan-500/20 text-cyan-300 font-mono px-2 py-0.5 rounded border border-cyan-500/30">MNM 2026-08-17</span>
-                </div>
-                <p class="text-xs text-slate-400">BUS-ORIENTED SINGLE LINE DIAGRAM — MARKET NETWORK MODEL (VISAYAS GRID)</p>
+            <i class="ph-bold ph-plus text-slate-500 group-hover:text-blue-400"></i>
+          </button>
+
+          <button onclick="spawnElement('GENERATOR')" class="w-full p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center justify-between text-xs transition group">
+            <div class="flex items-center gap-2.5">
+              <div class="w-6 h-6 rounded-full border-2 border-emerald-400 flex items-center justify-center font-bold text-[10px] text-emerald-400">G</div>
+              <span class="font-medium text-slate-200">Power Generator</span>
             </div>
+            <i class="ph-bold ph-plus text-slate-500 group-hover:text-blue-400"></i>
+          </button>
+
+          <button onclick="spawnElement('LOAD')" class="w-full p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center justify-between text-xs transition group">
+            <div class="flex items-center gap-2.5">
+              <div class="w-6 h-6 rounded border-2 border-amber-400 flex items-center justify-center font-bold text-[10px] text-amber-400">L</div>
+              <span class="font-medium text-slate-200">System Load</span>
+            </div>
+            <i class="ph-bold ph-plus text-slate-500 group-hover:text-blue-400"></i>
+          </button>
+
+          <button onclick="spawnElement('TRANSFORMER')" class="w-full p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center justify-between text-xs transition group">
+            <div class="flex items-center gap-2.5">
+              <div class="w-6 h-6 flex items-center justify-center text-cyan-400 font-bold text-sm">88</div>
+              <span class="font-medium text-slate-200">Transformer</span>
+            </div>
+            <i class="ph-bold ph-plus text-slate-500 group-hover:text-blue-400"></i>
+          </button>
+
+          <button onclick="spawnElement('BREAKER')" class="w-full p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl flex items-center justify-between text-xs transition group">
+            <div class="flex items-center gap-2.5">
+              <div class="w-5 h-5 bg-emerald-950 border border-emerald-500 rounded text-[9px] font-bold text-emerald-400 flex items-center justify-center">CB</div>
+              <span class="font-medium text-slate-200">Circuit Breaker</span>
+            </div>
+            <i class="ph-bold ph-plus text-slate-500 group-hover:text-blue-400"></i>
+          </button>
+        </div>
+      </div>
+
+      <hr class="border-slate-800">
+
+      <div>
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono mb-2">Instructions</h3>
+        <ul class="text-[11px] text-slate-400 space-y-1.5 list-disc pl-4">
+          <li><strong>Drag</strong> components to position them.</li>
+          <li>Click <strong>Connect Mode</strong> then click two buses (or Bus & Gen/Load) to wire them together.</li>
+          <li>Click any element to edit its <strong>MW, Reactance, or Rating</strong> in the Inspector.</li>
+          <li>Toggle Breakers OPEN/CLOSED to observe real-time power redistribution.</li>
+        </ul>
+      </div>
+
+      <!-- System Summary Stats -->
+      <div class="mt-auto bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-xs space-y-1.5">
+        <div class="flex justify-between text-slate-400">
+          <span>Total MW Generation:</span>
+          <span id="summaryTotalGen" class="font-mono text-emerald-400 font-bold">0.0 MW</span>
+        </div>
+        <div class="flex justify-between text-slate-400">
+          <span>Total MW Load:</span>
+          <span id="summaryTotalLoad" class="font-mono text-amber-400 font-bold">0.0 MW</span>
+        </div>
+        <div class="flex justify-between text-slate-400">
+          <span>Active Lines:</span>
+          <span id="summaryActiveLines" class="font-mono text-blue-400 font-bold">0</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Canvas SVG Drawing Surface -->
+    <main id="canvasContainer" class="flex-1 relative overflow-hidden bg-grid-bg bg-grid-dots cursor-grab active:cursor-grabbing">
+      
+      <!-- Floating Canvas Overlay Controls -->
+      <div class="absolute top-4 left-4 z-10 flex gap-2">
+        <div class="bg-grid-panel/90 backdrop-blur border border-grid-border rounded-lg p-1 flex gap-1 shadow-xl">
+          <button id="zoomInBtn" class="p-1.5 hover:bg-slate-800 rounded text-slate-300" title="Zoom In">
+            <i class="ph-bold ph-magnifying-glass-plus text-base"></i>
+          </button>
+          <button id="zoomOutBtn" class="p-1.5 hover:bg-slate-800 rounded text-slate-300" title="Zoom Out">
+            <i class="ph-bold ph-magnifying-glass-minus text-base"></i>
+          </button>
+          <button id="resetViewBtn" class="p-1.5 hover:bg-slate-800 rounded text-slate-300" title="Fit View">
+            <i class="ph-bold ph-arrows-out-line text-base"></i>
+          </button>
         </div>
 
-        <div class="flex items-center space-x-4 text-xs mt-2 sm:mt-0">
-            <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-                <span class="text-slate-400 block text-[10px] font-semibold">INTERVAL RUN</span>
-                <span class="mono font-bold text-emerald-400 text-sm">RTD 5-MIN #142</span>
-            </div>
-            <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-                <span class="text-slate-400 block text-[10px] font-semibold">AVERAGE MARKET LMP</span>
-                <span id="hdr-avg-lmp" class="mono font-bold text-amber-400 text-sm">₱4,285.50 / MWh</span>
-            </div>
-            <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-center">
-                <span class="text-slate-400 block text-[10px] font-semibold">NEXT DISPATCH</span>
-                <span id="poll-timer" class="mono font-bold text-cyan-400 text-sm">04:42</span>
-            </div>
-            <button onclick="toggleDarkMode()" class="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 transition" title="Toggle Light/Dark Mode">
-                <svg id="theme-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-                </svg>
-            </button>
+        <div id="connectionStatusBadge" class="hidden bg-blue-600/20 text-blue-400 border border-blue-500/30 px-3 py-1.5 rounded-lg text-xs font-semibold items-center gap-2 shadow-xl animate-pulse">
+          <i class="ph-bold ph-plugs"></i>
+          <span>Click first node to connect...</span>
         </div>
-    </header>
+      </div>
 
-    <!-- Navigation Tabs Bar -->
-    <nav class="bg-slate-900/80 border-b border-slate-800 px-6 py-2 flex flex-wrap justify-between items-center">
-        <div class="flex space-x-3">
-            <button onclick="switchTab('mnm-graphics')" id="btn-mnm-graphics" class="px-4 py-1.5 rounded-md text-xs font-semibold bg-cyan-500 text-slate-950 shadow transition">
-                Graphical Market SLD (All Circuits)
-            </button>
-            <button onclick="switchTab('circuit-matrix')" id="btn-circuit-matrix" class="px-4 py-1.5 rounded-md text-xs font-medium text-slate-300 hover:bg-slate-800 transition">
-                Circuits & Line Flow Matrix
-            </button>
-            <button onclick="switchTab('market-summary')" id="btn-market-summary" class="px-4 py-1.5 rounded-md text-xs font-medium text-slate-300 hover:bg-slate-800 transition">
-                Regional Telemetry (Sheet 4)
-            </button>
-            <button onclick="switchTab('definitions')" id="btn-definitions" class="px-4 py-1.5 rounded-md text-xs font-medium text-slate-300 hover:bg-slate-800 transition">
-                Market Definitions (Sheet 2)
-            </button>
-            <button onclick="switchTab('register')" id="btn-register" class="px-4 py-1.5 rounded-md text-xs font-medium text-slate-300 hover:bg-slate-800 transition">
-                Substation Register (Sheet 3)
-            </button>
-        </div>
-
-        <!-- Scenario Selector -->
-        <div class="flex items-center space-x-3 text-xs mt-2 sm:mt-0">
-            <span class="text-slate-400 font-medium">Market Dispatch Mode:</span>
-            <select id="dispatch-scenario" onchange="changeScenario(this.value)" class="bg-slate-800 border border-slate-700 text-slate-200 rounded px-2.5 py-1 focus:outline-none focus:border-cyan-500">
-                <option value="normal">Real-Time Market Dispatch (Normal Flow)</option>
-                <option value="peak">Peak Load Scenario (2,779.37 MW)</option>
-                <option value="congestion">Panay–Negros Line Congestion Stress Test</option>
-            </select>
-        </div>
-    </nav>
-
-    <!-- Main Content Workspace -->
-    <main class="flex-1 relative overflow-hidden flex flex-col">
-
-        <!-- TAB 1: GRAPHICAL SINGLE LINE DIAGRAM -->
-        <div id="tab-mnm-graphics" class="flex-1 relative bg-slate-950 overflow-hidden flex">
-            
-            <!-- Floating Voltage Legend & Info Overlay -->
-            <div class="absolute top-4 left-4 z-20 glass-panel p-4 rounded-xl border border-slate-800 text-xs shadow-2xl space-y-3 max-w-xs">
-                <div class="font-bold text-slate-100 border-b border-slate-700/60 pb-1.5 flex justify-between items-center">
-                    <span>MNM VOLTAGE LEGEND</span>
-                    <span class="text-[10px] text-cyan-400 font-mono">IEMOP STANDARD</span>
-                </div>
-                <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                    <div class="flex items-center space-x-2"><span class="w-3 h-3 rounded-full bg-v500 inline-block"></span><span>500 kV Grid</span></div>
-                    <div class="flex items-center space-x-2"><span class="w-3 h-3 rounded-full bg-v230 inline-block"></span><span>230 kV Backbone</span></div>
-                    <div class="flex items-center space-x-2"><span class="w-3 h-3 rounded-full bg-v138 inline-block"></span><span>138 kV Primary</span></div>
-                    <div class="flex items-center space-x-2"><span class="w-3 h-3 rounded-full bg-v69 inline-block"></span><span>69 kV Sub-trans</span></div>
-                    <div class="flex items-center space-x-2"><span class="w-3 h-3 rounded-full bg-v13 inline-block"></span><span>13.8 kV Gen/Local</span></div>
-                </div>
-                <div class="pt-2 border-t border-slate-700/60 text-[10px] text-slate-400">
-                    <span class="text-emerald-400 font-semibold">Active Flows:</span> Moving particle speed reflects circuit MW transfer intensity.
-                </div>
-            </div>
-
-            <!-- Canvas Viewport Controls -->
-            <div class="absolute bottom-6 left-4 z-20 flex space-x-2">
-                <button onclick="zoomCanvas(1.25)" class="bg-slate-800 hover:bg-slate-700 text-slate-200 p-2.5 rounded-lg border border-slate-700 shadow font-mono font-bold text-sm">+</button>
-                <button onclick="zoomCanvas(0.8)" class="bg-slate-800 hover:bg-slate-700 text-slate-200 p-2.5 rounded-lg border border-slate-700 shadow font-mono font-bold text-sm">-</button>
-                <button onclick="resetZoom()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-lg border border-slate-700 shadow text-xs font-semibold">Reset View</button>
-            </div>
-
-            <!-- Inter-Regional Flow Summary Bar -->
-            <div class="absolute bottom-6 right-6 z-20 glass-panel p-3.5 rounded-xl border border-slate-800 shadow-xl hidden md:block">
-                <div class="text-[11px] font-bold text-slate-300 mb-2 uppercase tracking-wide">Inter-Regional Tie Line Transfers</div>
-                <div class="flex space-x-3 text-xs font-mono">
-                    <div class="bg-slate-900/80 p-2 rounded border border-slate-800 text-center">
-                        <span class="text-slate-400 text-[10px] block">PANAY ↔ NEGROS</span>
-                        <span id="summary-pan-neg" class="font-bold text-emerald-400">124.20 MW</span>
-                    </div>
-                    <div class="bg-slate-900/80 p-2 rounded border border-slate-800 text-center">
-                        <span class="text-slate-400 text-[10px] block">NEGROS ↔ CEBU</span>
-                        <span id="summary-neg-ceb" class="font-bold text-rose-400">-76.92 MW</span>
-                    </div>
-                    <div class="bg-slate-900/80 p-2 rounded border border-slate-800 text-center">
-                        <span class="text-slate-400 text-[10px] block">LEYTE ↔ CEBU</span>
-                        <span id="summary-ley-ceb" class="font-bold text-emerald-400">55.27 MW</span>
-                    </div>
-                    <div class="bg-slate-900/80 p-2 rounded border border-slate-800 text-center">
-                        <span class="text-slate-400 text-[10px] block">MINDANAO ↔ VISAYAS</span>
-                        <span id="summary-min-vis" class="font-bold text-amber-400">179.05 MW</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SVG Market Network Canvas -->
-            <div id="svg-viewport" class="w-full h-full cursor-grab active:cursor-grabbing overflow-hidden flex items-center justify-center">
-                <svg id="sld-canvas" viewBox="0 0 1700 1000" class="w-full h-full transition-transform duration-100 ease-out">
-                    
-                    <!-- Background Dark Grid Pattern -->
-                    <rect width="1700" height="1000" fill="#030712"/>
-                    <g opacity="0.04" stroke="#ffffff" stroke-width="0.5">
-                        <path d="M 0 100 H 1700 M 0 200 H 1700 M 0 300 H 1700 M 0 400 H 1700 M 0 500 H 1700 M 0 600 H 1700 M 0 700 H 1700 M 0 800 H 1700 M 0 900 H 1700" />
-                        <path d="M 100 0 V 1000 M 200 0 V 1000 M 300 0 V 1000 M 400 0 V 1000 M 500 0 V 1000 M 600 0 V 1000 M 700 0 V 1000 M 800 0 V 1000 M 900 0 V 1000 M 1000 0 V 1000 M 1100 0 V 1000 M 1200 0 V 1000 M 1300 0 V 1000 M 1400 0 V 1000 M 1500 0 V 1000 M 1600 0 V 1000" />
-                    </g>
-
-                    <!-- REGIONAL SUB-GRID BOUNDARIES -->
-                    <!-- PANAY (08) -->
-                    <rect x="30" y="30" width="320" height="920" fill="#0f172a" fill-opacity="0.3" stroke="#f97316" stroke-width="1.5" stroke-dasharray="6,4" rx="10"/>
-                    <text x="45" y="55" fill="#f97316" font-size="16" font-weight="bold" font-family="Inter">PANAY SUB-GRID (REGION 08)</text>
-
-                    <!-- NEGROS (06) -->
-                    <rect x="370" y="30" width="320" height="920" fill="#0f172a" fill-opacity="0.3" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="6,4" rx="10"/>
-                    <text x="385" y="55" fill="#ef4444" font-size="16" font-weight="bold" font-family="Inter">NEGROS SUB-GRID (REGION 06)</text>
-
-                    <!-- CEBU (05) -->
-                    <rect x="710" y="30" width="320" height="920" fill="#0f172a" fill-opacity="0.3" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="6,4" rx="10"/>
-                    <text x="725" y="55" fill="#06b6d4" font-size="16" font-weight="bold" font-family="Inter">CEBU SUB-GRID (REGION 05)</text>
-
-                    <!-- LEYTE - SAMAR (04) -->
-                    <rect x="1050" y="30" width="320" height="660" fill="#0f172a" fill-opacity="0.3" stroke="#10b981" stroke-width="1.5" stroke-dasharray="6,4" rx="10"/>
-                    <text x="1065" y="55" fill="#10b981" font-size="16" font-weight="bold" font-family="Inter">LEYTE–SAMAR SUB-GRID (REGION 04)</text>
-
-                    <!-- BOHOL (07) -->
-                    <rect x="1050" y="710" width="320" height="240" fill="#0f172a" fill-opacity="0.3" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="6,4" rx="10"/>
-                    <text x="1065" y="735" fill="#8b5cf6" font-size="16" font-weight="bold" font-family="Inter">BOHOL SUB-GRID (REGION 07)</text>
-
-                    <!-- INTER-REGION TIE LINE CORRIDORS & ANIMATED PARTICLES -->
-                    <!-- Panay <-> Negros Submarine Cable (138kV) -->
-                    <path d="M 320 180 L 400 180" stroke="#f97316" stroke-width="3" />
-                    <path d="M 320 180 L 400 180" stroke="#38bdf8" stroke-width="3" class="flow-line-normal" />
-
-                    <!-- Negros <-> Cebu Tie Lines (138kV & 230kV) -->
-                    <path d="M 660 280 L 740 280" stroke="#ef4444" stroke-width="3" />
-                    <path d="M 660 280 L 740 280" stroke="#ef4444" stroke-width="3" class="flow-line-reverse" />
-                    
-                    <path d="M 660 480 L 740 480" stroke="#f97316" stroke-width="2.5" />
-                    <path d="M 660 480 L 740 480" stroke="#38bdf8" stroke-width="2.5" class="flow-line-normal" />
-
-                    <!-- Cebu <-> Leyte Tie Lines (230kV Submarine) -->
-                    <path d="M 1000 220 L 1080 220" stroke="#ef4444" stroke-width="3" />
-                    <path d="M 1000 220 L 1080 220" stroke="#38bdf8" stroke-width="3" class="flow-line-heavy" />
-
-                    <!-- Leyte <-> Bohol Interconnection -->
-                    <path d="M 1210 670 L 1210 730" stroke="#f97316" stroke-width="3" />
-                    <path d="M 1210 670 L 1210 730" stroke="#38bdf8" stroke-width="3" class="flow-line-normal" />
-
-                    <!-- Mindanao -> Visayas Interconnection (Bottom Right Link) -->
-                    <path d="M 1390 830 L 1330 830" stroke="#f59e0b" stroke-width="3.5" stroke-dasharray="4,2" />
-
-                    <!-- PANAY SUBSTATIONS & CIRCUITS (08) -->
-                    <!-- 08NABAS 138kV -->
-                    <g class="cursor-pointer" onclick="inspectSubstation('08NABAS', 'PANAY', '138 kV', 360.44, 4210.50)">
-                        <rect x="50" y="110" width="200" height="10" fill="#f97316" rx="2"/>
-                        <text x="50" y="102" fill="#e2e8f0" font-size="11" font-weight="bold">08NABAS 138kV</text>
-                        <!-- Connected Plants -->
-                        <circle cx="90" cy="150" r="12" fill="#0f172a" stroke="#10b981" stroke-width="2"/>
-                        <text x="90" y="154" fill="#10b981" font-size="10" text-anchor="middle" font-weight="bold">G</text>
-                        <line x1="90" y1="120" x2="90" y2="138" stroke="#10b981" stroke-width="2"/>
-                        <text x="110" y="154" fill="#94a3b8" font-size="10">08NABASDPP_U01 (112 MW)</text>
-                    </g>
-
-                    <!-- 08BAROTAC 230kV HUB -->
-                    <g class="cursor-pointer" onclick="inspectSubstation('08BAROTAC', 'PANAY', '230 kV', 185.00, 4280.00)">
-                        <rect x="50" y="260" width="230" height="12" fill="#ef4444" rx="2"/>
-                        <text x="50" y="252" fill="#e2e8f0" font-size="11" font-weight="bold">08BAROTAC 230kV MAIN HUB</text>
-                        <line x1="100" y1="210" x2="100" y2="260" stroke="#f97316" stroke-width="2.5"/>
-                    </g>
-
-                    <!-- 08DINGLE 138kV -->
-                    <g class="cursor-pointer" onclick="inspectSubstation('08DINGLE', 'PANAY', '138 kV', 95.00, 4190.00)">
-                        <rect x="50" y="410" width="200" height="10" fill="#f97316" rx="2"/>
-                        <text x="50" y="402" fill="#e2e8f0" font-size="11" font-weight="bold">08DINGLE 138kV</text>
-                        <circle cx="100" cy="450" r="12" fill="#0f172a" stroke="#10b981" stroke-width="2"/>
-                        <text x="100" y="454" fill="#10b981" font-size="10" text-anchor="middle" font-weight="bold">G</text>
-                        <line x1="100" y1="420" x2="100" y2="438" stroke="#10b981" stroke-width="2"/>
-                        <text x="120" y="454" fill="#94a3b8" font-size="10">08PDPP3_S01 (95 MW)</text>
-                    </g>
-
-                    <!-- 08ILOILO / PEDC 138kV -->
-                    <g class="cursor-pointer" onclick="inspectSubstation('08ILOILO', 'PANAY', '138 kV', 210.00, 4310.00)">
-                        <rect x="50" y="560" width="220" height="10" fill="#f97316" rx="2"/>
-                        <text x="50" y="552" fill="#e2e8f0" font-size="11" font-weight="bold">08ILOILO / PEDC 138kV</text>
-                        <circle cx="120" cy="600" r="12" fill="#0f172a" stroke="#10b981" stroke-width="2"/>
-                        <text x="120" y="604" fill="#10b981" font-size="10" text-anchor="middle" font-weight="bold">G</text>
-                        <line x1="120" y1="570" x2="120" y2="588" stroke="#10b981" stroke-width="2"/>
-                        <text x="140" y="604" fill="#94a3b8" font-size="10">08PEDC_U01 (164 MW)</text>
-                    </g>
-
-                    <!-- NEGROS SUBSTATIONS & CIRCUITS (06) -->
-                    <!-- 06BACOLOD 138kV -->
-                    <g class="cursor-pointer" onclick="inspectSubstation('06BACOLOD', 'NEGROS', '138 kV', 240.00, 4150.00)">
-                        <rect x="390" y="170" width="210" height="10" fill="#f97316" rx="2"/>
-                        <text x="390" y="162" fill="#e2e8f0" font-size="11" font-weight="bold">06BACOLOD 138kV</text>
-                    </g>
-
-                    <!-- 06CADIZ SOLAR HUB 138kV -->
-                    <g class="cursor-pointer" onclick="inspectSubstation('06CADIZ', 'NEGROS', '138 kV', 132.50, 3980.00)">
-                        <rect x="390" y="290" width="230" height="10" fill="#f97316" rx="2"/>
-                        <text x="390" y="282" fill="#e2e8f0" font-size="11" font-weight="bold">06CADIZ SOLAR 138kV</text>
-                        <circle cx="490" cy="330" r="12" fill="#0f172a" stroke="#eab308" stroke-width="2"/>
-                        <text x="490" y="334" fill="#eab308" font-size="10" text-anchor="middle" font-weight="bold">S</text>
-                        <line x1="490" y1="300" x2="490" y2="318" stroke="#eab308" stroke-width="2"/>
-                        <text x="510" y="334" fill="#94a3b8" font-size="10">06CADSOL_G01 (132 MW)</text>
-                    </g>
-
-                    <!-- 06CALATRAVA 230kV HUB -->
-                    <g class="cursor-pointer" onclick="inspectSubstation('06CALATRAVA', 'NEGROS', '230 kV', 310.00, 4120.00)">
-                        <rect x="390" y="440" width="230" height="12" fill="#ef4444" rx="2"/>
-                        <text x="390" y="432" fill="#e2e8f0" font-size="11" font-weight="bold">06CALATRAVA 230kV HUB</text>
-                    </g>
-
-                    <!-- CEBU SUBSTATIONS & CIRCUITS (05) -->
-                    <!-- 05MAGDUGO / NAGA 230kV -->
-                    <g class="cursor-pointer" onclick="inspectSubstation('05MAGDUGO', 'CEBU', '230 kV', 580.00, 4450.00)">
-                        <rect x="730" y="190" width="250" height="14" fill="#ef4444" rx="2"/>
-                        <text x="730" y="180" fill="#e2e8f0" font-size="11" font-weight="bold">05MAGDUGO - NAGA 230kV MAIN</text>
-                    </g>
-
-                    <!-- 05TOLEDO 138kV -->
-                    <g class="cursor-pointer" onclick="inspectSubstation('05TOLEDO', 'CEBU', '138 kV', 340.00, 4420.00)">
-                        <rect x="730" y="360" width="210" height="10" fill="#f97316" rx="2"/>
-                        <text x="730" y="352" fill="#e2e8f0" font-size="11" font-weight="bold">05TOLEDO 138kV</text>
-                        <circle cx="820" cy="400" r="12" fill="#0f172a" stroke="#10b981" stroke-width="2"/>
-                        <text x="820" y="404" fill="#10b981" font-size="10" text-anchor="middle" font-weight="bold">G</text>
-                        <line x1="820" y1="370" x2="820" y2="388" stroke="#10b981" stroke-width="2"/>
-                        <text x="840" y="404" fill="#94a3b8" font-size="10">05CEDC_U01 (246 MW)</text>
-                    </g>
-
-                    <!-- LEYTE SUBSTATIONS & CIRCUITS (04) -->
-                    <!-- 04TABANGO 230kV HUB -->
-                    <g class="cursor-pointer" onclick="inspectSubstation('04TABAN', 'LEYTE-SAMAR', '230 kV', 0.00, 3850.00)">
-                        <rect x="1070" y="200" width="230" height="12" fill="#ef4444" rx="2"/>
-                        <text x="1070" y="192" fill="#e2e8f0" font-size="11" font-weight="bold">04TABAN 230kV HUB</text>
-                    </g>
-
-                    <!-- 04KANANGA GEOTHERMAL 230kV -->
-                    <g class="cursor-pointer" onclick="inspectSubstation('04TONGONAN', 'LEYTE-SAMAR', '230 kV', 520.00, 3790.00)">
-                        <rect x="1070" y="350" width="250" height="12" fill="#ef4444" rx="2"/>
-                        <text x="1070" y="342" fill="#e2e8f0" font-size="11" font-weight="bold">04TONGONAN GEOTHERMAL</text>
-                        <circle cx="1170" cy="390" r="12" fill="#0f172a" stroke="#10b981" stroke-width="2"/>
-                        <text x="1170" y="394" fill="#10b981" font-size="10" text-anchor="middle" font-weight="bold">G</text>
-                        <line x1="1170" y1="362" x2="1170" y2="378" stroke="#10b981" stroke-width="2"/>
-                        <text x="1190" y="394" fill="#94a3b8" font-size="10">04LGPP_G01 (520 MW)</text>
-                    </g>
-
-                    <!-- BOHOL SUBSTATIONS & CIRCUITS (07) -->
-                    <!-- 07UBAY 138kV -->
-                    <g class="cursor-pointer" onclick="inspectSubstation('07UBAY', 'BOHOL', '138 kV', 0.00, 4580.00)">
-                        <rect x="1070" y="770" width="220" height="10" fill="#f97316" rx="2"/>
-                        <text x="1070" y="762" fill="#e2e8f0" font-size="11" font-weight="bold">07UBAY 138kV</text>
-                    </g>
-                </svg>
-            </div>
-
-            <!-- SUBSTATION INSPECTOR SIDE DRAWER -->
-            <aside id="inspector-drawer" class="absolute top-0 right-0 h-full w-80 glass-panel border-l border-slate-800 p-5 shadow-2xl transition-transform transform translate-x-full z-30 flex flex-col justify-between">
-                <div>
-                    <div class="flex justify-between items-center border-b border-slate-700 pb-3 mb-4">
-                        <div>
-                            <h3 id="drawer-node-name" class="font-bold text-white text-base">SUBSTATION INSPECTOR</h3>
-                            <span id="drawer-node-region" class="text-xs text-cyan-400 font-semibold">Grid Region</span>
-                        </div>
-                        <button onclick="closeDrawer()" class="text-slate-400 hover:text-white p-1">✕</button>
-                    </div>
-
-                    <div class="space-y-4 text-xs">
-                        <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 space-y-1">
-                            <div class="text-slate-400">BUS VOLTAGE ROLE</div>
-                            <div id="drawer-node-role" class="mono font-bold text-cyan-400 text-sm">230 kV Main Transmission</div>
-                        </div>
-
-                        <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 space-y-1">
-                            <div class="text-slate-400">LOCATIONAL MARGINAL PRICE (LMP)</div>
-                            <div id="drawer-node-lmp" class="mono font-bold text-amber-400 text-base">₱4,280.00 / MWh</div>
-                        </div>
-
-                        <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 space-y-1">
-                            <div class="text-slate-400">CONNECTED ACTIVE GENERATION</div>
-                            <div id="drawer-node-gen" class="mono font-bold text-emerald-400 text-sm">185.00 MW</div>
-                        </div>
-
-                        <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-800 space-y-2">
-                            <div class="text-slate-400 font-semibold">CONNECTED CIRCUITS (MNM MODEL)</div>
-                            <ul id="drawer-circuits-list" class="space-y-1.5 text-slate-300 mono text-[11px]">
-                                <!-- Populated dynamically -->
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="pt-4 border-t border-slate-800">
-                    <button class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold py-2 rounded-lg text-xs transition">
-                        Export Circuit Dispatch Log
-                    </button>
-                </div>
-            </aside>
-        </div>
-
-        <!-- TAB 2: CIRCUITS & LINE FLOW MATRIX -->
-        <div id="tab-circuit-matrix" class="hidden p-6 overflow-y-auto space-y-4">
-            <div class="flex justify-between items-center">
-                <h2 class="text-base font-bold text-white">Full Market Network Model (MNM) Circuit & Line Flow Register</h2>
-                <input type="text" id="search-circuits" placeholder="Filter circuits (e.g. 08BAROTAC, 05CEBU)..." oninput="filterCircuits(this.value)" class="bg-slate-900 border border-slate-800 rounded-lg px-4 py-1.5 text-xs w-72 focus:outline-none focus:border-cyan-500">
-            </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow">
-                <table class="w-full text-left text-xs border-collapse">
-                    <thead>
-                        <tr class="bg-slate-800 text-slate-400 uppercase tracking-wider border-b border-slate-700">
-                            <th class="p-3">Region</th>
-                            <th class="p-3">Circuit / Line Code</th>
-                            <th class="p-3">Type / Voltage</th>
-                            <th class="p-3">Active Transfer (MW)</th>
-                            <th class="p-3">Loading Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="circuits-tbody" class="divide-y divide-slate-800 text-slate-300 mono">
-                        <!-- Populated by JS -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- TAB 3: REGIONAL TELEMETRY (SHEET 4) -->
-        <div id="tab-market-summary" class="hidden p-6 overflow-y-auto space-y-6">
-            <h2 class="text-base font-bold text-white">Market Telemetry & Regional Input Summary (Sheet 4)</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <div class="flex justify-between items-center"><span class="font-bold text-orange-400 text-sm">PANAY (08)</span><span class="text-xs text-slate-400 font-mono">NORMAL</span></div>
-                    <div class="text-xs space-y-1 text-slate-300">
-                        <div class="flex justify-between"><span>Gen:</span><span class="mono text-emerald-400 font-bold">360.44 MW</span></div>
-                        <div class="flex justify-between"><span>Demand:</span><span class="mono text-rose-400 font-bold">486.08 MW</span></div>
-                        <div class="flex justify-between"><span>Net Balance:</span><span class="mono text-amber-400 font-bold">-125.64 MW</span></div>
-                    </div>
-                </div>
-
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <div class="flex justify-between items-center"><span class="font-bold text-rose-400 text-sm">NEGROS (06)</span><span class="text-xs text-slate-400 font-mono">NORMAL</span></div>
-                    <div class="text-xs space-y-1 text-slate-300">
-                        <div class="flex justify-between"><span>Gen:</span><span class="mono text-emerald-400 font-bold">646.11 MW</span></div>
-                        <div class="flex justify-between"><span>Demand:</span><span class="mono text-rose-400 font-bold">411.58 MW</span></div>
-                        <div class="flex justify-between"><span>Net Balance:</span><span class="mono text-amber-400 font-bold">+234.53 MW</span></div>
-                    </div>
-                </div>
-
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <div class="flex justify-between items-center"><span class="font-bold text-cyan-400 text-sm">CEBU (05)</span><span class="text-xs text-slate-400 font-mono">NORMAL</span></div>
-                    <div class="text-xs space-y-1 text-slate-300">
-                        <div class="flex justify-between"><span>Gen:</span><span class="mono text-emerald-400 font-bold">642.05 MW</span></div>
-                        <div class="flex justify-between"><span>Demand:</span><span class="mono text-rose-400 font-bold">1,107.30 MW</span></div>
-                        <div class="flex justify-between"><span>Net Balance:</span><span class="mono text-amber-400 font-bold">-465.25 MW</span></div>
-                    </div>
-                </div>
-
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <div class="flex justify-between items-center"><span class="font-bold text-emerald-400 text-sm">LEYTE–SAMAR (04)</span><span class="text-xs text-slate-400 font-mono">NORMAL</span></div>
-                    <div class="text-xs space-y-1 text-slate-300">
-                        <div class="flex justify-between"><span>Gen:</span><span class="mono text-emerald-400 font-bold">581.37 MW</span></div>
-                        <div class="flex justify-between"><span>Demand:</span><span class="mono text-rose-400 font-bold">279.28 MW</span></div>
-                        <div class="flex justify-between"><span>Net Balance:</span><span class="mono text-amber-400 font-bold">+302.09 MW</span></div>
-                    </div>
-                </div>
-
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <div class="flex justify-between items-center"><span class="font-bold text-purple-400 text-sm">BOHOL (07)</span><span class="text-xs text-slate-400 font-mono">NORMAL</span></div>
-                    <div class="text-xs space-y-1 text-slate-300">
-                        <div class="flex justify-between"><span>Gen:</span><span class="mono text-emerald-400 font-bold">3.34 MW</span></div>
-                        <div class="flex justify-between"><span>Demand:</span><span class="mono text-rose-400 font-bold">122.26 MW</span></div>
-                        <div class="flex justify-between"><span>Net Balance:</span><span class="mono text-amber-400 font-bold">-118.92 MW</span></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 4: DEFINITIONS (SHEET 2) -->
-        <div id="tab-definitions" class="hidden p-6 overflow-y-auto space-y-4">
-            <h2 class="text-base font-bold text-white">Market & EMS Definitions (Sheet 2)</h2>
-            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow">
-                <table class="w-full text-left text-xs border-collapse">
-                    <thead>
-                        <tr class="bg-slate-800 text-slate-400 uppercase border-b border-slate-700">
-                            <th class="p-3">Item</th>
-                            <th class="p-3">Category</th>
-                            <th class="p-3">Definition</th>
-                            <th class="p-3">Unit</th>
-                        </tr>
-                    </thead>
-                    <tbody id="defs-tbody" class="divide-y divide-slate-800 text-slate-300"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- TAB 5: ELEMENT REGISTER (SHEET 3) -->
-        <div id="tab-register" class="hidden p-6 overflow-y-auto space-y-4">
-            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow">
-                <table class="w-full text-left text-xs border-collapse">
-                    <thead>
-                        <tr class="bg-slate-800 text-slate-400 uppercase border-b border-slate-700">
-                            <th class="p-3">Region</th>
-                            <th class="p-3">Name</th>
-                            <th class="p-3">Type</th>
-                            <th class="p-3">Role</th>
-                            <th class="p-3">Explanation</th>
-                        </tr>
-                    </thead>
-                    <tbody id="reg-tbody" class="divide-y divide-slate-800 text-slate-300"></tbody>
-                </table>
-            </div>
-        </div>
-
+      <!-- Dynamic SVG Viewport -->
+      <svg id="sldSvg" class="w-full h-full min-h-full min-w-full">
+        <g id="viewportGroup" transform="translate(40, 40) scale(1)">
+          <!-- Dynamic rendering layers -->
+          <g id="linesLayer"></g>
+          <g id="transformersLayer"></g>
+          <g id="shuntsLayer"></g>
+          <g id="breakersLayer"></g>
+          <g id="busesLayer"></g>
+          <g id="generatorsLayer"></g>
+          <g id="loadsLayer"></g>
+          <g id="interactiveConnectLayer"></g>
+        </g>
+      </svg>
     </main>
 
-    <!-- Footer -->
-    <footer class="bg-slate-900 border-t border-slate-800 py-2.5 px-6 text-center text-xs text-slate-500 flex justify-between items-center">
-        <span>INDEPENDENT ELECTRICITY MARKET OPERATOR OF THE PHILIPPINES (IEMOP) — VISAYAS GRID</span>
-        <span class="mono text-cyan-400">BUS-ORIENTED MARKET NETWORK MODEL (MNM_SLD_VIS_20260817)</span>
-    </footer>
+    <!-- Right Side Inspector Panel -->
+    <aside class="w-80 border-l border-grid-border bg-grid-panel flex flex-col shrink-0 z-20 shadow-2xl">
+      <div class="p-3.5 border-b border-grid-border flex items-center justify-between bg-slate-900/50">
+        <h2 class="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono flex items-center gap-1.5">
+          <i class="ph-bold ph-sliders-horizontal text-blue-400"></i> Element Inspector
+        </h2>
+        <span id="inspectTypeBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">NONE</span>
+      </div>
 
-    <!-- Application Script -->
-    <script>
-        // Parsed Circuits from PDF Model
-        const MODEL_DATA = {
-            "PANAY": [
-                { id: "08BARTAC_L01", type: "Transmission Line 230kV", mw: 142.1, status: "Normal" },
-                { id: "08NABASDPP_U01", type: "Generator Unit", mw: 112.0, status: "Dispatched" },
-                { id: "08DINGL_T1L1", type: "Line Circuit 138kV", mw: 85.4, status: "Normal" },
-                { id: "08PEDC_U01", type: "Thermal Plant", mw: 164.0, status: "Dispatched" }
-            ],
-            "NEGROS": [
-                { id: "06AMLAN_T1L1", type: "Sub-transmission 138kV", mw: 92.0, status: "Normal" },
-                { id: "06CADSOL_G01", type: "Solar Plant", mw: 132.5, status: "Dispatched" },
-                { id: "06BACOL_C01", type: "Collector Line", mw: 64.2, status: "Normal" }
-            ],
-            "CEBU": [
-                { id: "05MAGDUGO_L01", type: "230kV Backbone", mw: 310.0, status: "Normal" },
-                { id: "05CEDC_U01", type: "Thermal Unit", mw: 246.0, status: "Dispatched" }
-            ],
-            "LEYTE-SAMAR": [
-                { id: "04LGPP_G01", type: "Geothermal Unit", mw: 520.0, status: "Dispatched" },
-                { id: "04TABAN_T1L1", type: "230kV Line", mw: 180.0, status: "Normal" }
-            ],
-            "BOHOL": [
-                { id: "07UBAY_T1L1", type: "138kV Tie Line", mw: 77.5, status: "Normal" },
-                { id: "07LOBOC_G01", type: "Hydro Unit", mw: 3.3, status: "Dispatched" }
-            ]
-        };
+      <div id="inspectorContent" class="flex-1 overflow-y-auto p-4 space-y-4">
+        <div id="emptyInspectState" class="text-center py-12 px-4 border border-dashed border-slate-800 rounded-xl">
+          <i class="ph-duotone ph-cursor-click text-4xl text-slate-600 mb-2"></i>
+          <h3 class="text-xs font-semibold text-slate-400">No Element Selected</h3>
+          <p class="text-[11px] text-slate-500 mt-1">Click any element on the canvas to edit its properties or view computed power flow.</p>
+        </div>
 
-        // Canvas Zoom Logic
-        let scale = 1;
-        const canvas = document.getElementById('sld-canvas');
+        <div id="inspectForm" class="hidden space-y-4">
+          <!-- Dynamically generated controls -->
+        </div>
+      </div>
 
-        function zoomCanvas(factor) {
-            scale *= factor;
-            scale = Math.min(Math.max(0.6, scale), 3);
-            canvas.style.transform = `scale(${scale})`;
+      <!-- Real-time Event Logger -->
+      <div class="border-t border-grid-border bg-slate-950 p-3 h-32 flex flex-col">
+        <div class="text-[11px] font-mono text-slate-400 mb-1 flex items-center justify-between font-semibold">
+          <span><i class="ph-bold ph-terminal text-blue-400"></i> Power Flow Diagnostics</span>
+          <button id="clearLogBtn" class="text-[9px] text-slate-500 hover:text-slate-300">Clear</button>
+        </div>
+        <div id="eventLog" class="flex-1 overflow-y-auto font-mono text-[10px] space-y-1 text-slate-400 bg-slate-900/50 rounded-lg p-2 border border-slate-800/80">
+          <div class="text-slate-500">[READY] Grid solver engine initialized.</div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <script>
+    // System Data Model State
+    let network = {
+      buses: [],
+      generators: [],
+      loads: [],
+      lines: [],
+      transformers: [],
+      breakers: []
+    };
+
+    let selectedElement = null;
+    let wiringMode = false;
+    let wireSource = null;
+
+    // Viewport State
+    let zoomLevel = 1.0;
+    let panX = 40;
+    let panY = 40;
+    let isPanning = false;
+    let startPanX = 0;
+    let startPanY = 0;
+
+    // Element Dragging State
+    let draggingNode = null;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    // Sample 5-Bus Power System Preset
+    const SAMPLE_5BUS_MODEL = {
+      buses: [
+        { id: "BUS_1", name: "Bus 1 (Corella 230kV)", kv: 230, x: 100, y: 150 },
+        { id: "BUS_2", name: "Bus 2 (Ubay Tie 230kV)", kv: 230, x: 450, y: 150 },
+        { id: "BUS_3", name: "Bus 3 (Corella 138kV)", kv: 138, x: 100, y: 380 },
+        { id: "BUS_4", name: "Bus 4 (Tapal 69kV)", kv: 69, x: 450, y: 380 },
+        { id: "BUS_5", name: "Bus 5 (Gen Bus 13.8kV)", kv: 13.8, x: 275, y: 520 }
+      ],
+      generators: [
+        { id: "GEN_1", name: "Corella Thermal", busId: "BUS_1", pMW: 120, pMax: 200, cost: 25 },
+        { id: "GEN_2", name: "Ubay Hydro", busId: "BUS_2", pMW: 80, pMax: 150, cost: 15 },
+        { id: "GEN_3", name: "Bohol Solar", busId: "BUS_5", pMW: 45, pMax: 60, cost: 5 }
+      ],
+      loads: [
+        { id: "LOAD_1", name: "City Center Load", busId: "BUS_3", pMW: 110 },
+        { id: "LOAD_2", name: "Industrial Zone", busId: "BUS_4", pMW: 95 },
+        { id: "LOAD_3", name: "Residential Load", busId: "BUS_2", pMW: 40 }
+      ],
+      lines: [
+        { id: "LINE_1_2", name: "230kV Tie Line 1-2", fromBus: "BUS_1", toBus: "BUS_2", xPu: 0.05, maxMW: 100 },
+        { id: "LINE_3_4", name: "138kV Substation Line 3-4", fromBus: "BUS_3", toBus: "BUS_4", xPu: 0.08, maxMW: 80 }
+      ],
+      transformers: [
+        { id: "TR_1_3", name: "TR1 (230/138kV)", fromBus: "BUS_1", toBus: "BUS_3", xPu: 0.03, mva: 150 },
+        { id: "TR_2_4", name: "TR2 (230/69kV)", fromBus: "BUS_2", toBus: "BUS_4", xPu: 0.04, mva: 120 },
+        { id: "TR_4_5", name: "TR3 (69/13.8kV)", fromBus: "BUS_4", toBus: "BUS_5", xPu: 0.02, mva: 80 }
+      ],
+      breakers: [
+        { id: "CB_1_2", name: "Breaker Line 1-2", elementId: "LINE_1_2", status: "CLOSED" },
+        { id: "CB_TR1", name: "Breaker TR 1-3", elementId: "TR_1_3", status: "CLOSED" }
+      ]
+    };
+
+    // Voltage Color Palette
+    function getVoltageColor(kv) {
+      if (kv >= 230) return '#EF4444'; // Red
+      if (kv >= 138) return '#F97316'; // Orange
+      if (kv >= 69) return '#10B981';  // Green
+      return '#3B82F6';                // Blue
+    }
+
+    // --- POWER FLOW SOLVER ENGINE ---
+    function solvePowerFlow() {
+      // 1. Identify Connected Components and Bus Active Injection
+      const nBuses = network.buses.length;
+      if (nBuses === 0) return;
+
+      const busMap = {};
+      network.buses.forEach((b, idx) => {
+        busMap[b.id] = idx;
+        b.pGen = 0;
+        b.pLoad = 0;
+        b.pNet = 0;
+        b.theta = 0; // Voltage Angle in Radians
+        b.energized = false;
+      });
+
+      // Sum Generations
+      network.generators.forEach(g => {
+        if (busMap[g.busId] !== undefined) {
+          network.buses[busMap[g.busId]].pGen += parseFloat(g.pMW || 0);
+        }
+      });
+
+      // Sum Loads
+      network.loads.forEach(l => {
+        if (busMap[l.busId] !== undefined) {
+          network.buses[busMap[l.busId]].pLoad += parseFloat(l.pMW || 0);
+        }
+      });
+
+      // Compute Net Active Power Injection at each bus
+      network.buses.forEach(b => {
+        b.pNet = b.pGen - b.pLoad;
+      });
+
+      // Collect Active Network Branches (Lines & Transformers) that are NOT isolated by OPEN Breakers
+      const branches = [];
+
+      network.lines.forEach(line => {
+        const cb = network.breakers.find(b => b.elementId === line.id);
+        const isOpen = cb && cb.status === 'OPEN';
+        line.isOpen = isOpen;
+        if (!isOpen && busMap[line.fromBus] !== undefined && busMap[line.toBus] !== undefined) {
+          branches.push({
+            id: line.id,
+            type: 'LINE',
+            from: busMap[line.fromBus],
+            to: busMap[line.toBus],
+            x: parseFloat(line.xPu) || 0.05,
+            maxMW: parseFloat(line.maxMW) || 100,
+            ref: line
+          });
+        } else {
+          line.pFlow = 0;
+          line.loadingPct = 0;
+        }
+      });
+
+      network.transformers.forEach(tr => {
+        const cb = network.breakers.find(b => b.elementId === tr.id);
+        const isOpen = cb && cb.status === 'OPEN';
+        tr.isOpen = isOpen;
+        if (!isOpen && busMap[tr.fromBus] !== undefined && busMap[tr.toBus] !== undefined) {
+          branches.push({
+            id: tr.id,
+            type: 'TRANSFORMER',
+            from: busMap[tr.fromBus],
+            to: busMap[tr.toBus],
+            x: parseFloat(tr.xPu) || 0.03,
+            maxMW: parseFloat(tr.mva) || 100,
+            ref: tr
+          });
+        } else {
+          tr.pFlow = 0;
+          tr.loadingPct = 0;
+        }
+      });
+
+      // Mark Energized Buses via Graph Traversal starting from Slack Bus (Bus 0 or Bus with active Gen)
+      const adj = Array.from({ length: nBuses }, () => []);
+      branches.forEach(br => {
+        adj[br.from].push(br.to);
+        adj[br.to].push(br.from);
+      });
+
+      const queue = [0]; // Slack bus
+      if (nBuses > 0) network.buses[0].energized = true;
+
+      while (queue.length > 0) {
+        const curr = queue.shift();
+        adj[curr].forEach(neighbor => {
+          if (!network.buses[neighbor].energized) {
+            network.buses[neighbor].energized = true;
+            queue.push(neighbor);
+          }
+        });
+      }
+
+      // Linear DC Power Flow Formulation: [B] * [Theta] = [P_net]
+      // Approximated Angle Solver using Gauss-Seidel Method for robust live canvas updating
+      const B = Array.from({ length: nBuses }, () => Array(nBuses).fill(0));
+
+      branches.forEach(br => {
+        const b_ij = 1.0 / (br.x || 0.01);
+        B[br.from][br.from] += b_ij;
+        B[br.to][br.to] += b_ij;
+        B[br.from][br.to] -= b_ij;
+        B[br.to][br.from] -= b_ij;
+      });
+
+      // Solve for angles (Bus 0 is reference angle theta_0 = 0)
+      for (let iter = 0; iter < 40; iter++) {
+        for (let i = 1; i < nBuses; i++) {
+          if (!network.buses[i].energized) continue;
+          let sumBTheta = 0;
+          let sumB = 0;
+          for (let j = 0; j < nBuses; j++) {
+            if (i !== j) {
+              const b_ij = B[i][j];
+              sumBTheta -= b_ij * network.buses[j].theta;
+              sumB -= b_ij;
+            }
+          }
+          if (sumB > 0) {
+            network.buses[i].theta = (network.buses[i].pNet / 100.0 + sumBTheta) / sumB;
+          }
+        }
+      }
+
+      // Compute Branch Power Flow P_ij = (theta_i - theta_j) / X_ij
+      branches.forEach(br => {
+        const thetaI = network.buses[br.from].theta;
+        const thetaJ = network.buses[br.to].theta;
+        const flowMW = ((thetaI - thetaJ) / br.x) * 100.0; // Scaled to MW
+
+        br.ref.pFlow = Math.abs(flowMW);
+        br.ref.flowDir = flowMW >= 0 ? 1 : -1; // 1: From -> To, -1: To -> From
+        br.ref.loadingPct = Math.min(999, Math.round((Math.abs(flowMW) / br.maxMW) * 100));
+
+        if (br.ref.loadingPct > 100) {
+          logEvent(`OVERLOAD DETECTED: ${br.ref.name || br.ref.id} flow (${br.ref.pFlow.toFixed(1)} MW) exceeds capacity (${br.maxMW} MW)`, 'WARN');
+        }
+      });
+
+      updateSummaryStats();
+    }
+
+    function updateSummaryStats() {
+      const totalGen = network.generators.reduce((sum, g) => sum + parseFloat(g.pMW || 0), 0);
+      const totalLoad = network.loads.reduce((sum, l) => sum + parseFloat(l.pMW || 0), 0);
+      const activeLines = network.lines.filter(l => !l.isOpen).length + network.transformers.filter(t => !t.isOpen).length;
+
+      document.getElementById('summaryTotalGen').textContent = `${totalGen.toFixed(1)} MW`;
+      document.getElementById('summaryTotalLoad').textContent = `${totalLoad.toFixed(1)} MW`;
+      document.getElementById('summaryActiveLines').textContent = activeLines;
+    }
+
+    // --- RENDER FUNCTION ---
+    function renderCanvas() {
+      solvePowerFlow();
+
+      const linesG = document.getElementById('linesLayer');
+      const trsG = document.getElementById('transformersLayer');
+      const breakersG = document.getElementById('breakersLayer');
+      const busesG = document.getElementById('busesLayer');
+      const gensG = document.getElementById('generatorsLayer');
+      const loadsG = document.getElementById('loadsLayer');
+
+      linesG.innerHTML = '';
+      trsG.innerHTML = '';
+      breakersG.innerHTML = '';
+      busesG.innerHTML = '';
+      gensG.innerHTML = '';
+      loadsG.innerHTML = '';
+
+      const busMap = {};
+      network.buses.forEach(b => busMap[b.id] = b);
+
+      // 1. Render Transmission Lines
+      network.lines.forEach(line => {
+        const b1 = busMap[line.fromBus];
+        const b2 = busMap[line.toBus];
+        if (!b1 || !b2) return;
+
+        const isOverloaded = line.loadingPct > 100;
+        const color = line.isOpen ? '#475569' : (isOverloaded ? '#EF4444' : '#38BDF8');
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'cursor-pointer');
+        g.onclick = (e) => { e.stopPropagation(); selectElement('LINE', line); };
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        path.setAttribute('x1', b1.x + 40); path.setAttribute('y1', b1.y + 4);
+        path.setAttribute('x2', b2.x + 40); path.setAttribute('y2', b2.y + 4);
+        path.setAttribute('stroke', color);
+        path.setAttribute('stroke-width', isOverloaded ? '4' : '2.5');
+        if (isOverloaded) path.setAttribute('class', 'animate-pulse');
+
+        g.appendChild(path);
+
+        // Animated Power Flow Particles
+        if (!line.isOpen && line.pFlow > 0.1) {
+          const flowPath = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          flowPath.setAttribute('x1', b1.x + 40); flowPath.setAttribute('y1', b1.y + 4);
+          flowPath.setAttribute('x2', b2.x + 40); flowPath.setAttribute('y2', b2.y + 4);
+          flowPath.setAttribute('stroke', '#FFFFFF');
+          flowPath.setAttribute('stroke-width', '2');
+          flowPath.setAttribute('class', `flow-line ${line.flowDir < 0 ? 'flow-reverse' : ''}`);
+          g.appendChild(flowPath);
         }
 
-        function resetZoom() {
-            scale = 1;
-            canvas.style.transform = `scale(1)`;
+        // Flow MW Label
+        const midX = (b1.x + b2.x) / 2 + 40;
+        const midY = (b1.y + b2.y) / 2;
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', midX); text.setAttribute('y', midY - 8);
+        text.setAttribute('fill', isOverloaded ? '#EF4444' : '#94A3B8');
+        text.setAttribute('font-size', '10');
+        text.setAttribute('font-mono', 'true');
+        text.setAttribute('text-anchor', 'middle');
+        text.textContent = `${(line.pFlow || 0).toFixed(1)} MW (${line.loadingPct || 0}%)`;
+
+        g.appendChild(text);
+        linesG.appendChild(g);
+      });
+
+      // 2. Render Transformers
+      network.transformers.forEach(tr => {
+        const b1 = busMap[tr.fromBus];
+        const b2 = busMap[tr.toBus];
+        if (!b1 || !b2) return;
+
+        const isOverloaded = tr.loadingPct > 100;
+        const color = tr.isOpen ? '#475569' : (isOverloaded ? '#EF4444' : '#06B6D4');
+        const midX = (b1.x + b2.x) / 2 + 40;
+        const midY = (b1.y + b2.y) / 2 + 4;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'cursor-pointer');
+        g.onclick = (e) => { e.stopPropagation(); selectElement('TRANSFORMER', tr); };
+
+        const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line1.setAttribute('x1', b1.x + 40); line1.setAttribute('y1', b1.y + 4);
+        line1.setAttribute('x2', midX); line1.setAttribute('y2', midY);
+        line1.setAttribute('stroke', color); line1.setAttribute('stroke-width', '2');
+
+        const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line2.setAttribute('x1', midX); line2.setAttribute('y1', midY);
+        line2.setAttribute('x2', b2.x + 40); line2.setAttribute('y2', b2.y + 4);
+        line2.setAttribute('stroke', color); line2.setAttribute('stroke-width', '2');
+
+        // Dual interlocking circles
+        const c1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        c1.setAttribute('cx', midX - 6); c1.setAttribute('cy', midY); c1.setAttribute('r', '8');
+        c1.setAttribute('fill', '#0F172A'); c1.setAttribute('stroke', color); c1.setAttribute('stroke-width', '2');
+
+        const c2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        c2.setAttribute('cx', midX + 6); c2.setAttribute('cy', midY); c2.setAttribute('r', '8');
+        c2.setAttribute('fill', '#0F172A'); c2.setAttribute('stroke', color); c2.setAttribute('stroke-width', '2');
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', midX); label.setAttribute('y', midY + 20);
+        label.setAttribute('fill', '#94A3B8'); label.setAttribute('font-size', '9');
+        label.setAttribute('font-mono', 'true'); label.setAttribute('text-anchor', 'middle');
+        label.textContent = `${(tr.pFlow || 0).toFixed(1)} MW (${tr.loadingPct || 0}%)`;
+
+        g.appendChild(line1); g.appendChild(line2);
+        g.appendChild(c1); g.appendChild(c2); g.appendChild(label);
+        trsG.appendChild(g);
+      });
+
+      // 3. Render Circuit Breakers
+      network.breakers.forEach(cb => {
+        const isClosed = cb.status === 'CLOSED';
+        const targetLine = network.lines.find(l => l.id === cb.elementId) || network.transformers.find(t => t.id === cb.elementId);
+        if (!targetLine) return;
+
+        const b1 = busMap[targetLine.fromBus];
+        const b2 = busMap[targetLine.toBus];
+        if (!b1 || !b2) return;
+
+        const cbX = (b1.x * 0.7 + b2.x * 0.3) + 40;
+        const cbY = (b1.y * 0.7 + b2.y * 0.3) + 4;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('transform', `translate(${cbX}, ${cbY})`);
+        g.setAttribute('class', 'cursor-pointer');
+        g.onclick = (e) => { e.stopPropagation(); toggleBreaker(cb.id); selectElement('BREAKER', cb); };
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', '-10'); rect.setAttribute('y', '-10');
+        rect.setAttribute('width', '20'); rect.setAttribute('height', '20');
+        rect.setAttribute('rx', '4');
+        rect.setAttribute('fill', isClosed ? '#064E3B' : '#7F1D1D');
+        rect.setAttribute('stroke', isClosed ? '#10B981' : '#EF4444');
+        rect.setAttribute('stroke-width', '2');
+
+        const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        txt.setAttribute('text-anchor', 'middle'); txt.setAttribute('y', '3.5');
+        txt.setAttribute('fill', '#FFFFFF'); txt.setAttribute('font-size', '8');
+        txt.setAttribute('font-weight', 'bold');
+        txt.textContent = isClosed ? 'CB' : 'X';
+
+        g.appendChild(rect); g.appendChild(txt);
+        breakersG.appendChild(g);
+      });
+
+      // 4. Render Buses
+      network.buses.forEach(bus => {
+        const color = bus.energized ? getVoltageColor(bus.kv) : '#475569';
+        const isSelected = selectedElement && selectedElement.data.id === bus.id;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'cursor-move');
+        g.onmousedown = (e) => startDragNode(e, 'BUS', bus);
+        g.onclick = (e) => { e.stopPropagation(); handleNodeClick('BUS', bus); };
+
+        const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bar.setAttribute('x', bus.x); bar.setAttribute('y', bus.y);
+        bar.setAttribute('width', '80'); bar.setAttribute('height', '8');
+        bar.setAttribute('rx', '4');
+        bar.setAttribute('fill', color);
+        if (isSelected) {
+          bar.setAttribute('stroke', '#FFFFFF');
+          bar.setAttribute('stroke-width', '2');
         }
 
-        function inspectSubstation(name, region, role, gen, lmp) {
-            document.getElementById('drawer-node-name').innerText = name;
-            document.getElementById('drawer-node-region').innerText = region + " REGION";
-            document.getElementById('drawer-node-role').innerText = role;
-            document.getElementById('drawer-node-gen').innerText = gen + " MW";
-            document.getElementById('drawer-node-lmp').innerText = "₱" + lmp.toFixed(2) + " / MWh";
-            
-            const circuitsList = document.getElementById('drawer-circuits-list');
-            circuitsList.innerHTML = (MODEL_DATA[region] || []).map(c => `
-                <li class="flex justify-between border-b border-slate-800 pb-1">
-                    <span>${c.id}</span>
-                    <span class="text-emerald-400 font-bold">${c.mw} MW</span>
-                </li>
-            `).join('');
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', bus.x + 40); label.setAttribute('y', bus.y - 8);
+        label.setAttribute('fill', '#F8FAFC'); label.setAttribute('font-size', '11');
+        label.setAttribute('font-weight', 'bold'); label.setAttribute('text-anchor', 'middle');
+        label.textContent = bus.name;
 
-            document.getElementById('inspector-drawer').classList.remove('translate-x-full');
+        const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        sub.setAttribute('x', bus.x + 40); sub.setAttribute('y', bus.y + 20);
+        sub.setAttribute('fill', '#94A3B8'); sub.setAttribute('font-size', '9');
+        sub.setAttribute('font-mono', 'true'); sub.setAttribute('text-anchor', 'middle');
+        sub.textContent = `${bus.kv}kV | Net: ${bus.pNet.toFixed(1)}MW`;
+
+        g.appendChild(bar); g.appendChild(label); g.appendChild(sub);
+        busesG.appendChild(g);
+      });
+
+      // 5. Render Generators
+      network.generators.forEach(gen => {
+        const bus = busMap[gen.busId];
+        if (!bus) return;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'cursor-pointer');
+        g.onclick = (e) => { e.stopPropagation(); selectElement('GENERATOR', gen); };
+
+        const gx = bus.x + 40;
+        const gy = bus.y - 35;
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', gx); line.setAttribute('y1', gy + 12);
+        line.setAttribute('x2', gx); line.setAttribute('y2', bus.y);
+        line.setAttribute('stroke', '#10B981'); line.setAttribute('stroke-width', '2');
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', gx); circle.setAttribute('cy', gy); circle.setAttribute('r', '12');
+        circle.setAttribute('fill', '#064E3B'); circle.setAttribute('stroke', '#10B981'); circle.setAttribute('stroke-width', '2');
+
+        const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        txt.setAttribute('x', gx); txt.setAttribute('y', gy + 4);
+        txt.setAttribute('text-anchor', 'middle'); txt.setAttribute('fill', '#10B981');
+        txt.setAttribute('font-size', '10'); txt.setAttribute('font-weight', 'bold');
+        txt.textContent = 'G';
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', gx); label.setAttribute('y', gy - 16);
+        label.setAttribute('text-anchor', 'middle'); label.setAttribute('fill', '#10B981');
+        label.setAttribute('font-size', '9'); label.setAttribute('font-mono', 'true');
+        label.textContent = `${gen.pMW}MW`;
+
+        g.appendChild(line); g.appendChild(circle); g.appendChild(txt); g.appendChild(label);
+        gensG.appendChild(g);
+      });
+
+      // 6. Render Loads
+      network.loads.forEach(load => {
+        const bus = busMap[load.busId];
+        if (!bus) return;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'cursor-pointer');
+        g.onclick = (e) => { e.stopPropagation(); selectElement('LOAD', load); };
+
+        const lx = bus.x + 40;
+        const ly = bus.y + 35;
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', lx); line.setAttribute('y1', bus.y + 8);
+        line.setAttribute('x2', lx); line.setAttribute('y2', ly - 10);
+        line.setAttribute('stroke', '#F59E0B'); line.setAttribute('stroke-width', '2');
+
+        const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        poly.setAttribute('points', `${lx-10},${ly-10} ${lx+10},${ly-10} ${lx},${ly+8}`);
+        poly.setAttribute('fill', '#78350F'); poly.setAttribute('stroke', '#F59E0B'); poly.setAttribute('stroke-width', '2');
+
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', lx); label.setAttribute('y', ly + 20);
+        label.setAttribute('text-anchor', 'middle'); label.setAttribute('fill', '#F59E0B');
+        label.setAttribute('font-size', '9'); label.setAttribute('font-mono', 'true');
+        label.textContent = `${load.pMW}MW`;
+
+        g.appendChild(line); g.appendChild(poly); g.appendChild(label);
+        loadsG.appendChild(g);
+      });
+    }
+
+    // --- INTERACTION & INSPECTOR HANDLERS ---
+    function selectElement(type, data) {
+      selectedElement = { type, data };
+      const emptyState = document.getElementById('emptyInspectState');
+      const form = document.getElementById('inspectForm');
+      const badge = document.getElementById('inspectTypeBadge');
+
+      emptyState.classList.add('hidden');
+      form.classList.remove('hidden');
+      badge.textContent = type;
+
+      let fieldsHtml = `
+        <div>
+          <label class="text-[11px] text-slate-400 font-semibold">Element Identifier</label>
+          <input type="text" value="${data.name || data.id}" onchange="updateAttr('name', this.value)" 
+            class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1 focus:outline-none focus:border-blue-500">
+        </div>
+      `;
+
+      if (type === 'BUS') {
+        fieldsHtml += `
+          <div>
+            <label class="text-[11px] text-slate-400 font-semibold">Nominal Voltage (kV)</label>
+            <input type="number" value="${data.kv}" onchange="updateAttr('kv', parseFloat(this.value))" 
+              class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1">
+          </div>
+          <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-xs space-y-1 font-mono">
+            <div class="flex justify-between"><span>Calculated Angle:</span><span class="text-blue-400">${(data.theta || 0).toFixed(3)} rad</span></div>
+            <div class="flex justify-between"><span>Net MW Injection:</span><span class="text-emerald-400">${(data.pNet || 0).toFixed(1)} MW</span></div>
+          </div>
+        `;
+      } else if (type === 'GENERATOR') {
+        fieldsHtml += `
+          <div>
+            <label class="text-[11px] text-slate-400 font-semibold flex justify-between">
+              <span>Active Dispatch (MW)</span>
+              <span class="text-emerald-400 font-mono">${data.pMW} MW</span>
+            </label>
+            <input type="range" min="0" max="${data.pMax}" step="1" value="${data.pMW}" oninput="updateAttr('pMW', parseFloat(this.value))" 
+              class="w-full accent-emerald-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer mt-2">
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-400 font-semibold">Max Capacity Pmax (MW)</label>
+            <input type="number" value="${data.pMax}" onchange="updateAttr('pMax', parseFloat(this.value))" 
+              class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1">
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-400 font-semibold">Marginal Cost ($/MWh)</label>
+            <input type="number" value="${data.cost || 20}" onchange="updateAttr('cost', parseFloat(this.value))" 
+              class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1">
+          </div>
+        `;
+      } else if (type === 'LOAD') {
+        fieldsHtml += `
+          <div>
+            <label class="text-[11px] text-slate-400 font-semibold">Active Demand (MW)</label>
+            <input type="number" value="${data.pMW}" onchange="updateAttr('pMW', parseFloat(this.value))" 
+              class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1">
+          </div>
+        `;
+      } else if (type === 'LINE') {
+        fieldsHtml += `
+          <div>
+            <label class="text-[11px] text-slate-400 font-semibold">Per-Unit Reactance X (pu)</label>
+            <input type="number" step="0.01" value="${data.xPu}" onchange="updateAttr('xPu', parseFloat(this.value))" 
+              class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1">
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-400 font-semibold">Thermal Rating Limit (MW)</label>
+            <input type="number" value="${data.maxMW}" onchange="updateAttr('maxMW', parseFloat(this.value))" 
+              class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs font-mono text-slate-200 mt-1">
+          </div>
+          <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-xs space-y-1 font-mono">
+            <div class="flex justify-between"><span>Computed Active Flow:</span><span class="text-blue-400">${(data.pFlow || 0).toFixed(1)} MW</span></div>
+            <div class="flex justify-between"><span>Loading Percentage:</span><span class="${data.loadingPct > 100 ? 'text-red-400 font-bold' : 'text-emerald-400'}">${data.loadingPct || 0}%</span></div>
+          </div>
+        `;
+      } else if (type === 'BREAKER') {
+        fieldsHtml += `
+          <button onclick="toggleBreaker('${data.id}')" class="w-full py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 ${data.status === 'CLOSED' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
+            <i class="ph-bold ph-power"></i> ${data.status === 'CLOSED' ? 'TRIP / OPEN BREAKER' : 'CLOSE BREAKER'}
+          </button>
+        `;
+      }
+
+      fieldsHtml += `
+        <button onclick="deleteSelectedElement()" class="w-full py-2 px-3 bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/40 rounded-xl text-xs font-medium transition flex items-center justify-center gap-1.5 mt-4">
+          <i class="ph-bold ph-trash"></i> Delete Element
+        </button>
+      `;
+
+      form.innerHTML = fieldsHtml;
+      renderCanvas();
+    }
+
+    function updateAttr(key, val) {
+      if (selectedElement && selectedElement.data) {
+        selectedElement.data[key] = val;
+        renderCanvas();
+      }
+    }
+
+    function toggleBreaker(cbId) {
+      const cb = network.breakers.find(b => b.id === cbId);
+      if (cb) {
+        cb.status = cb.status === 'CLOSED' ? 'OPEN' : 'CLOSED';
+        logEvent(`Circuit Breaker ${cb.id} switched to ${cb.status}`, cb.status === 'OPEN' ? 'WARN' : 'INFO');
+        renderCanvas();
+        if (selectedElement && selectedElement.data.id === cbId) selectElement('BREAKER', cb);
+      }
+    }
+
+    function spawnElement(type) {
+      const id = `${type}_${Date.now().toString().slice(-4)}`;
+      if (type === 'BUS') {
+        network.buses.push({ id, name: `Bus ${network.buses.length + 1}`, kv: 230, x: 200, y: 200 });
+      } else if (type === 'GENERATOR' && network.buses.length > 0) {
+        network.generators.push({ id, name: `Gen ${id}`, busId: network.buses[0].id, pMW: 50, pMax: 100, cost: 20 });
+      } else if (type === 'LOAD' && network.buses.length > 0) {
+        network.loads.push({ id, name: `Load ${id}`, busId: network.buses[0].id, pMW: 40 });
+      } else if (type === 'TRANSFORMER' && network.buses.length >= 2) {
+        network.transformers.push({ id, name: `TR ${id}`, fromBus: network.buses[0].id, toBus: network.buses[1].id, xPu: 0.04, mva: 100 });
+      } else if (type === 'BREAKER' && network.lines.length > 0) {
+        network.breakers.push({ id, name: `CB ${id}`, elementId: network.lines[0].id, status: 'CLOSED' });
+      } else {
+        logEvent('Need at least 1 or 2 buses created before placing attached components.', 'WARN');
+        return;
+      }
+      logEvent(`Created new element: ${id}`);
+      renderCanvas();
+    }
+
+    function deleteSelectedElement() {
+      if (!selectedElement) return;
+      const { type, data } = selectedElement;
+
+      if (type === 'BUS') network.buses = network.buses.filter(b => b.id !== data.id);
+      else if (type === 'GENERATOR') network.generators = network.generators.filter(g => g.id !== data.id);
+      else if (type === 'LOAD') network.loads = network.loads.filter(l => l.id !== data.id);
+      else if (type === 'LINE') network.lines = network.lines.filter(l => l.id !== data.id);
+      else if (type === 'TRANSFORMER') network.transformers = network.transformers.filter(t => t.id !== data.id);
+      else if (type === 'BREAKER') network.breakers = network.breakers.filter(c => c.id !== data.id);
+
+      selectedElement = null;
+      document.getElementById('emptyInspectState').classList.remove('hidden');
+      document.getElementById('inspectForm').classList.add('hidden');
+      renderCanvas();
+    }
+
+    // Wiring Mode Manager
+    function handleNodeClick(type, node) {
+      if (!wiringMode) return;
+      if (!wireSource) {
+        wireSource = node;
+        document.getElementById('connectionStatusBadge').children[1].textContent = `Connected from ${node.name}. Click target bus...`;
+      } else {
+        if (wireSource.id !== node.id) {
+          const id = `LINE_${Date.now().toString().slice(-4)}`;
+          network.lines.push({
+            id,
+            name: `Line ${wireSource.name} - ${node.name}`,
+            fromBus: wireSource.id,
+            toBus: node.id,
+            xPu: 0.05,
+            maxMW: 100
+          });
+          logEvent(`Wired transmission path: ${wireSource.name} <-> ${node.name}`);
         }
+        wireSource = null;
+        toggleWiringMode(false);
+        renderCanvas();
+      }
+    }
 
-        function closeDrawer() {
-            document.getElementById('inspector-drawer').classList.add('translate-x-full');
+    function toggleWiringMode(active) {
+      wiringMode = active;
+      const btn = document.getElementById('wireToolBtn');
+      const badge = document.getElementById('connectionStatusBadge');
+      const text = document.getElementById('wireToolText');
+
+      if (wiringMode) {
+        btn.classList.replace('bg-slate-800', 'bg-blue-600');
+        badge.classList.remove('hidden');
+        badge.classList.add('flex');
+        text.textContent = 'Connect Mode (Active)';
+      } else {
+        btn.classList.replace('bg-blue-600', 'bg-slate-800');
+        badge.classList.add('hidden');
+        badge.classList.remove('flex');
+        text.textContent = 'Connect Mode (Off)';
+        wireSource = null;
+      }
+    }
+
+    function startDragNode(e, type, node) {
+      if (wiringMode) return;
+      draggingNode = node;
+      startPanX = e.clientX - node.x;
+      startPanY = e.clientY - node.y;
+    }
+
+    function logEvent(msg, type = 'INFO') {
+      const container = document.getElementById('eventLog');
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = type === 'WARN' ? 'text-amber-400 font-bold' : 'text-slate-300';
+      div.textContent = `[${time}] ${msg}`;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // Pan & Zoom Setup
+    function initViewportPanZoom() {
+      const container = document.getElementById('canvasContainer');
+      const viewportGroup = document.getElementById('viewportGroup');
+
+      function updateTransform() {
+        viewportGroup.setAttribute('transform', `translate(${panX}, ${panY}) scale(${zoomLevel})`);
+      }
+
+      container.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.cursor-pointer') || e.target.closest('.cursor-move')) return;
+        isPanning = true;
+        startPanX = e.clientX - panX;
+        startPanY = e.clientY - panY;
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (draggingNode) {
+          draggingNode.x = e.clientX - startPanX;
+          draggingNode.y = e.clientY - startPanY;
+          renderCanvas();
+        } else if (isPanning) {
+          panX = e.clientX - startPanX;
+          panY = e.clientY - startPanY;
+          updateTransform();
         }
+      });
 
-        function switchTab(tab) {
-            ['mnm-graphics', 'circuit-matrix', 'market-summary', 'definitions', 'register'].forEach(t => {
-                document.getElementById(`tab-${t}`).classList.add('hidden');
-                document.getElementById(`btn-${t}`).classList.remove('bg-cyan-500', 'text-slate-950', 'font-semibold');
-                document.getElementById(`btn-${t}`).classList.add('text-slate-300');
-            });
-            document.getElementById(`tab-${tab}`).classList.remove('hidden');
-            document.getElementById(`btn-${tab}`).classList.add('bg-cyan-500', 'text-slate-950', 'font-semibold');
+      window.addEventListener('mouseup', () => {
+        isPanning = false;
+        draggingNode = null;
+      });
+
+      container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.1 : 0.9;
+        zoomLevel = Math.min(Math.max(0.3, zoomLevel * factor), 2.5);
+        updateTransform();
+      }, { passive: false });
+
+      document.getElementById('zoomInBtn').onclick = () => { zoomLevel = Math.min(2.5, zoomLevel * 1.2); updateTransform(); };
+      document.getElementById('zoomOutBtn').onclick = () => { zoomLevel = Math.max(0.3, zoomLevel / 1.2); updateTransform(); };
+      document.getElementById('resetViewBtn').onclick = () => { zoomLevel = 1.0; panX = 40; panY = 40; updateTransform(); };
+    }
+
+    // Initializer
+    window.onload = function() {
+      initViewportPanZoom();
+
+      // Load initial Sample 5-Bus Model
+      network = JSON.parse(JSON.stringify(SAMPLE_5BUS_MODEL));
+
+      document.getElementById('solveFlowBtn').onclick = () => { renderCanvas(); logEvent('Power flow manually solved.', 'INFO'); };
+      document.getElementById('wireToolBtn').onclick = () => toggleWiringMode(!wiringMode);
+      document.getElementById('loadSampleBtn').onclick = () => { network = JSON.parse(JSON.stringify(SAMPLE_5BUS_MODEL)); renderCanvas(); logEvent('Loaded Sample 5-Bus Grid Model.'); };
+      document.getElementById('clearCanvasBtn').onclick = () => { network = { buses: [], generators: [], loads: [], lines: [], transformers: [], breakers: [] }; renderCanvas(); logEvent('Canvas cleared.'); };
+      document.getElementById('clearLogBtn').onclick = () => { document.getElementById('eventLog').innerHTML = ''; };
+
+      // JSON Export/Import
+      document.getElementById('exportJsonBtn').onclick = () => {
+        const str = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(network, null, 2));
+        const a = document.createElement('a');
+        a.setAttribute("href", str);
+        a.setAttribute("download", "network_model.json");
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      };
+
+      const importInput = document.getElementById('importFileInput');
+      document.getElementById('importJsonBtn').onclick = () => importInput.click();
+      importInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            network = JSON.parse(evt.target.result);
+            renderCanvas();
+            logEvent('Imported external JSON network model.');
+          };
+          reader.readAsText(file);
         }
+      };
 
-        function toggleDarkMode() {
-            document.documentElement.classList.toggle('dark');
-        }
-
-        function renderCircuitMatrix() {
-            let html = '';
-            Object.keys(MODEL_DATA).forEach(reg => {
-                MODEL_DATA[reg].forEach(c => {
-                    html += `
-                        <tr class="hover:bg-slate-800/50">
-                            <td class="p-3 font-bold text-orange-400">${reg}</td>
-                            <td class="p-3 font-bold text-white">${c.id}</td>
-                            <td class="p-3 text-cyan-400">${c.type}</td>
-                            <td class="p-3 text-emerald-400 font-bold">${c.mw} MW</td>
-                            <td class="p-3"><span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">${c.status}</span></td>
-                        </tr>
-                    `;
-                });
-            });
-            document.getElementById('circuits-tbody').innerHTML = html;
-        }
-
-        renderCircuitMatrix();
-    </script>
+      renderCanvas();
+    };
+  </script>
 </body>
 </html>
