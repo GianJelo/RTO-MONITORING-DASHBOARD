@@ -56,6 +56,7 @@
         #tooltip .title { font-weight: 700; color: #60a5fa; margin-bottom: 4px; border-bottom: 1px solid #374151; padding-bottom: 2px; }
         #tooltip .row { display: flex; justify-content: space-between; gap: 16px; color: #d1d5db; }
         #tooltip .val { font-family: monospace; color: #34d399; }
+        #tooltip .val.overload { color: #f87171; font-weight: 700; }
 
         .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; z-index: 1000; }
         .modal { background: #111827; border: 1px solid #374151; width: 500px; max-width: 90vw; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
@@ -74,7 +75,7 @@
     <header>
         <div class="logo-area">
             <span>⚡ RTO JAVASCRIPT KCL NETWORK SOLVER</span>
-            <span class="logo-badge">FINAL v8.1</span>
+            <span class="logo-badge">FINAL v8.2</span>
         </div>
         <div class="header-tools">
             <button class="btn active" id="btn-select" title="Select & Move (V)">
@@ -312,6 +313,11 @@ class SLDApp {
                 btnSolve.className = 'btn btn-warning';
                 document.getElementById('txt-solver').innerText = 'Auto-Solve: OFF';
                 document.getElementById('icon-solver').innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>'; 
+                
+                document.getElementById('sys-gen').innerText = 'OFF';
+                document.getElementById('sys-load').innerText = 'OFF';
+                document.getElementById('sys-balance').innerText = 'OFF';
+                document.getElementById('deficit-row').style.display = 'none';
             }
             this.updateInspector();
         });
@@ -334,7 +340,7 @@ class SLDApp {
                 if (this.model.importJSON(evt.target.result)) {
                     this.selectedElement = null;
                     this.selectedWire = null;
-                    this.runPowerFlow(); // Force solve post import
+                    if (this.autoSolve) this.runPowerFlow(); 
                     this.updateInspector();
                     alert("Model imported successfully!");
                 } else {
@@ -356,6 +362,7 @@ class SLDApp {
                 document.getElementById('json-modal').style.display = 'none';
                 this.selectedElement = null;
                 this.selectedWire = null;
+                if (this.autoSolve) this.runPowerFlow();
                 this.updateInspector();
                 alert("Model successfully loaded!");
             } else {
@@ -598,28 +605,46 @@ class SLDApp {
         const hoveredNode = this.findNodeAt(wx, wy);
         const hoveredWire = !hoveredNode ? this.findWireAt(wx, wy) : null;
         const tt = document.getElementById('tooltip');
+        const ttStatus = document.getElementById('tt-status');
         
         if (hoveredNode) {
             document.getElementById('tt-title').innerText = hoveredNode.name || "Unnamed Node";
             document.getElementById('tt-type').innerText = hoveredNode.type.toUpperCase();
             
             let flowText = 'N/A';
-            if (hoveredNode.type === 'generator' || hoveredNode.type === 'load') {
-                flowText = `${(hoveredNode.displayMw !== undefined ? hoveredNode.displayMw : hoveredNode.mw || 0).toFixed(1)} MW`;
-            } else if (['transformer', 'breaker', 'bus'].includes(hoveredNode.type)) {
-                flowText = `${(hoveredNode.flow || 0).toFixed(1)} MW (Thru)`;
+            if (!this.autoSolve) {
+                flowText = 'Auto-Solve OFF';
+            } else {
+                if (hoveredNode.type === 'generator' || hoveredNode.type === 'load') {
+                    flowText = `${(hoveredNode.displayMw !== undefined ? hoveredNode.displayMw : hoveredNode.mw || 0).toFixed(1)} MW`;
+                } else if (['transformer', 'breaker', 'bus'].includes(hoveredNode.type)) {
+                    flowText = `${(hoveredNode.flow || 0).toFixed(1)} MW (Thru)`;
+                }
             }
             
             document.getElementById('tt-flow').innerText = flowText;
-            document.getElementById('tt-status').innerText = hoveredNode.status || 'closed';
+            
+            if (hoveredNode.type === 'transformer' && this.autoSolve) {
+                 const isOverloaded = (hoveredNode.loading || 0) > 100;
+                 ttStatus.innerText = `${hoveredNode.status || 'closed'} (${((hoveredNode.loading || 0)).toFixed(0)}% cap)`;
+                 if (isOverloaded) ttStatus.classList.add('overload'); else ttStatus.classList.remove('overload');
+            } else {
+                 ttStatus.innerText = hoveredNode.status || 'closed';
+                 ttStatus.classList.remove('overload');
+            }
+            
             tt.style.display = 'block';
             tt.style.left = (cx + 15) + 'px';
             tt.style.top = (cy + 15) + 'px';
         } else if (hoveredWire) {
             document.getElementById('tt-title').innerText = hoveredWire.name || "Unnamed Line";
             document.getElementById('tt-type').innerText = 'TRANSMISSION LINE';
-            document.getElementById('tt-flow').innerText = `${(hoveredWire.flow || 0).toFixed(1)} MW`;
-            document.getElementById('tt-status').innerText = `${hoveredWire.status} (${((hoveredWire.loading || 0)).toFixed(0)}% cap)`;
+            document.getElementById('tt-flow').innerText = this.autoSolve ? `${(hoveredWire.flow || 0).toFixed(1)} MW` : 'Auto-Solve OFF';
+            
+            const isOverloaded = this.autoSolve && (hoveredWire.loading || 0) > 100;
+            ttStatus.innerText = this.autoSolve ? `${hoveredWire.status} (${((hoveredWire.loading || 0)).toFixed(0)}% cap)` : hoveredWire.status;
+            if (isOverloaded) ttStatus.classList.add('overload'); else ttStatus.classList.remove('overload');
+
             tt.style.display = 'block';
             tt.style.left = (cx + 15) + 'px';
             tt.style.top = (cy + 15) + 'px';
@@ -677,6 +702,7 @@ class SLDApp {
             nodeMap[n.id] = n;
             n.displayMw = 0; 
             n.flow = 0; 
+            n.loading = 0;
         });
 
         let activeWires = this.model.wires.filter(w => {
@@ -723,7 +749,7 @@ class SLDApp {
             let loads = comp.filter(n => n.type === 'load' && n.status === 'closed');
 
             let totalG = gens.reduce((s, g) => s + (g.mw || 0), 0);
-            let totalL = loads.reduce((s, l) => s + (Math.max(0, l.mw || 0)), 0); 
+            let totalL = loads.reduce((s, l) => s + (l.mw || 0), 0); 
 
             globalTotalGen += totalG;
             globalTotalLoad += totalL;
@@ -739,8 +765,7 @@ class SLDApp {
             });
 
             loads.forEach(l => {
-                let loadMw = Math.max(0, l.mw || 0); 
-                let actual = totalL > 0 ? (loadMw * balancedP / totalL) : 0;
+                let actual = totalL !== 0 ? (l.mw * balancedP / totalL) : 0;
                 P_inj[l.id] = -actual;
                 l.displayMw = actual;
             });
@@ -819,10 +844,14 @@ class SLDApp {
                 let flowSum = 0;
                 connectedWires.forEach(w => { flowSum += Math.abs(w.flow || 0); });
                 n.flow = flowSum / 2;
+                
+                if (n.type === 'transformer') {
+                    n.loading = (n.flow / (n.ratingMVA || 100)) * 100;
+                }
 
                 if (this.selectedElement && this.selectedElement.id === n.id) {
                     const flowInspectorEl = document.getElementById('insp-flow-val');
-                    if (flowInspectorEl) flowInspectorEl.innerText = `${n.flow.toFixed(1)} MW`;
+                    if (flowInspectorEl) flowInspectorEl.innerText = this.autoSolve ? `${n.flow.toFixed(1)} MW` : 'Auto-Solve OFF';
                 }
             }
         });
@@ -852,6 +881,7 @@ class SLDApp {
         if (this.selectedElement) {
             const el = this.selectedElement;
             const fallbackName = el.name !== undefined ? el.name : "";
+            const thruFlowText = this.autoSolve ? `${(el.flow || 0).toFixed(1)} MW` : 'Auto-Solve OFF';
 
             html += `
                 <div class="form-group"><label>Identifier Name</label><input type="text" class="form-control" id="insp-name" value="${fallbackName}"></div>
@@ -866,7 +896,7 @@ class SLDApp {
 
             if (el.type === 'bus') {
                 html += `
-                    <div class="form-group"><label>Throughput Flow</label><div style="font-family: monospace; font-size: 13px; color: #34d399;" id="insp-flow-val">${(el.flow || 0).toFixed(1)} MW</div></div>
+                    <div class="form-group"><label>Throughput Flow</label><div style="font-family: monospace; font-size: 13px; color: #34d399;" id="insp-flow-val">${thruFlowText}</div></div>
                     <div class="form-group"><label>Voltage Level</label>
                         <select class="form-control" id="insp-voltage">
                             <option value="500 kV" ${el.voltage === '500 kV' ? 'selected' : ''}>500 kV</option>
@@ -893,13 +923,13 @@ class SLDApp {
                 `;
             } else if (el.type === 'transformer') {
                 html += `
-                    <div class="form-group"><label>Active Flow Through (MW)</label><div style="font-family: monospace; font-size: 13px; color: #34d399;" id="insp-flow-val">${(el.flow || 0).toFixed(1)} MW</div></div>
+                    <div class="form-group"><label>Active Flow Through (MW)</label><div style="font-family: monospace; font-size: 13px; color: #34d399;" id="insp-flow-val">${thruFlowText}</div></div>
                     <div class="form-group"><label>Reactance (X pu)</label><input type="number" step="0.01" class="form-control" id="insp-x" value="${el.reactance || 0.05}"></div>
                     <div class="form-group"><label>Rating (MVA)</label><input type="number" class="form-control" id="insp-mva" value="${el.ratingMVA || 100}"></div>
                 `;
             } else if (el.type === 'breaker') {
                 html += `
-                    <div class="form-group"><label>Active Flow Through (MW)</label><div style="font-family: monospace; font-size: 13px; color: #34d399;" id="insp-flow-val">${(el.flow || 0).toFixed(1)} MW</div></div>
+                    <div class="form-group"><label>Active Flow Through (MW)</label><div style="font-family: monospace; font-size: 13px; color: #34d399;" id="insp-flow-val">${thruFlowText}</div></div>
                 `;
             }
 
@@ -1002,7 +1032,7 @@ class SLDApp {
             if (!n1 || !n2) return;
 
             const isSelected = this.selectedWire && this.selectedWire.id === w.id;
-            const isOverloaded = (w.loading || 0) > 100;
+            const isOverloaded = this.autoSolve && (w.loading || 0) > 100;
             
             const group = wireGroups[[n1.id, n2.id].sort().join('-')];
             const index = group.indexOf(w);
@@ -1062,33 +1092,35 @@ class SLDApp {
                 }
             }
 
-            let labelD = totalLen * 0.5;
-            let labelX, labelY;
-            if (labelD <= len1) {
-                let pct = len1 > 0 ? labelD / len1 : 0;
-                labelX = p1.x + (drawMidX - p1.x) * pct;
-                labelY = p1.y;
-            } else if (labelD <= len1 + len2) {
-                let pct = len2 > 0 ? (labelD - len1) / len2 : 0;
-                labelX = drawMidX;
-                labelY = p1.y + (p2.y - p1.y) * pct;
-            } else {
-                let pct = len3 > 0 ? (labelD - len1 - len2) / len3 : 0;
-                labelX = drawMidX + (p2.x - drawMidX) * pct;
-                labelY = p2.y;
+            if (this.autoSolve) {
+                let labelD = totalLen * 0.5;
+                let labelX, labelY;
+                if (labelD <= len1) {
+                    let pct = len1 > 0 ? labelD / len1 : 0;
+                    labelX = p1.x + (drawMidX - p1.x) * pct;
+                    labelY = p1.y;
+                } else if (labelD <= len1 + len2) {
+                    let pct = len2 > 0 ? (labelD - len1) / len2 : 0;
+                    labelX = drawMidX;
+                    labelY = p1.y + (p2.y - p1.y) * pct;
+                } else {
+                    let pct = len3 > 0 ? (labelD - len1 - len2) / len3 : 0;
+                    labelX = drawMidX + (p2.x - drawMidX) * pct;
+                    labelY = p2.y;
+                }
+
+                ctx.fillStyle = 'rgba(17, 24, 39, 0.85)';
+                ctx.strokeStyle = isOverloaded ? '#f87171' : '#374151';
+                ctx.lineWidth = 1;
+                ctx.fillRect(labelX - 25, labelY - 10, 50, 20);
+                ctx.strokeRect(labelX - 25, labelY - 10, 50, 20);
+
+                ctx.fillStyle = isOverloaded ? '#f87171' : '#34d399';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`${(w.flow || 0).toFixed(1)}M`, labelX, labelY);
             }
-
-            ctx.fillStyle = 'rgba(17, 24, 39, 0.85)';
-            ctx.strokeStyle = isOverloaded ? '#f87171' : '#374151';
-            ctx.lineWidth = 1;
-            ctx.fillRect(labelX - 25, labelY - 10, 50, 20);
-            ctx.strokeRect(labelX - 25, labelY - 10, 50, 20);
-
-            ctx.fillStyle = isOverloaded ? '#f87171' : '#34d399';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(`${(w.flow || 0).toFixed(1)}M`, labelX, labelY);
         });
 
         if (this.mode === 'wire' && this.wireStartNode) {
@@ -1147,8 +1179,8 @@ class SLDApp {
                 ctx.font = '10px sans-serif';
                 ctx.fillText(n.name || "", 0, 28);
                 
-                let currentOutput = (n.displayMw !== undefined) ? n.displayMw : (n.mw || 0);
-                ctx.fillText(`${currentOutput.toFixed(1)} / ${n.mw || 0} MW`, 0, 40);
+                let currentOutput = this.autoSolve ? ((n.displayMw !== undefined) ? n.displayMw : (n.mw || 0)).toFixed(1) : 'OFF';
+                ctx.fillText(`${currentOutput} / ${n.mw || 0} MW`, 0, 40);
 
             } else if (n.type === 'load') {
                 ctx.fillStyle = '#111827';
@@ -1172,20 +1204,21 @@ class SLDApp {
                 ctx.font = '10px sans-serif';
                 ctx.fillText(n.name || "", 0, 28);
                 
-                let actualLoad = (n.displayMw !== undefined) ? n.displayMw : (n.mw || 0);
-                ctx.fillText(`${actualLoad.toFixed(1)} MW`, 0, 40);
+                let actualLoad = this.autoSolve ? ((n.displayMw !== undefined) ? n.displayMw : (n.mw || 0)).toFixed(1) + ' MW' : 'OFF';
+                ctx.fillText(`${actualLoad}`, 0, 40);
 
             } else if (n.type === 'transformer') {
+                const isOverloaded = this.autoSolve && (n.loading || 0) > 100;
                 ctx.fillStyle = '#111827';
                 ctx.beginPath();
                 ctx.arc(0, -8, 12, 0, Math.PI * 2);
                 ctx.arc(0, 8, 12, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.strokeStyle = isSelected ? '#ffffff' : '#60a5fa';
-                ctx.lineWidth = isSelected ? 3 : 2;
+                ctx.strokeStyle = isSelected ? '#ffffff' : (isOverloaded ? '#f87171' : '#60a5fa');
+                ctx.lineWidth = isSelected ? 3 : (isOverloaded ? 3 : 2);
                 ctx.stroke();
 
-                ctx.fillStyle = '#f3f4f6';
+                ctx.fillStyle = isOverloaded ? '#f87171' : '#f3f4f6';
                 ctx.font = '10px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText(n.name || "", 0, 28);
