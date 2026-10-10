@@ -23,6 +23,8 @@
         .btn-warning:hover { background: #c2410c; color: white; }
         .btn-primary { background: #1d4ed8; color: white; border-color: #2563eb; }
         .btn-primary:hover { background: #2563eb; }
+        .btn-info { background: #0369a1; color: white; border-color: #0284c7; }
+        .btn-info:hover { background: #0284c7; }
 
         .workspace { display: flex; flex: 1; width: 100%; height: calc(100% - 48px); position: relative; overflow: hidden; }
         
@@ -75,7 +77,7 @@
     <header>
         <div class="logo-area">
             <span>⚡ RTO JAVASCRIPT KCL NETWORK SOLVER</span>
-            <span class="logo-badge">FINAL v8.4</span>
+            <span class="logo-badge">FINAL v8.5</span>
         </div>
         <div class="header-tools">
             <button class="btn active" id="btn-select" title="Select & Move (V)">
@@ -93,9 +95,14 @@
                 <span id="txt-solver">Auto-Solve: ON</span>
             </button>
 
-            <button class="btn btn-primary" id="btn-inject" title="Inject Real-time Data (CSV or JSON)">
+            <button class="btn btn-primary" id="btn-inject" title="Inject Active Power Data (Generators & Loads)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 Live Data
+            </button>
+
+            <button class="btn btn-info" id="btn-limits" title="Inject Thermal Limits (Lines & Transformers)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                Limits Data
             </button>
             
             <button class="btn" id="btn-export" title="Export Model Schema JSON">Export</button>
@@ -182,6 +189,7 @@
 
 <input type="file" id="import-file" style="display: none;" accept=".json">
 <input type="file" id="inject-file" style="display: none;" accept=".json, .csv">
+<input type="file" id="limits-file" style="display: none;" accept=".json, .csv">
 
 <div class="modal-overlay" id="json-modal">
     <div class="modal">
@@ -284,22 +292,12 @@ class SLDApp {
             });
         });
 
-        container.addEventListener('dragover', e => e.preventDefault());
-        container.addEventListener('drop', e => {
-            e.preventDefault();
-            const type = e.dataTransfer.getData('text/plain');
-            if (!type) return;
-            const rect = this.canvas.getBoundingClientRect();
-            const wx = (e.clientX - rect.left - this.pan.x) / this.zoom;
-            const wy = (e.clientY - rect.top - this.pan.y) / this.zoom;
-            this.addElement(type, wx, wy);
-        });
-
         document.getElementById('btn-select').addEventListener('click', () => this.setMode('select'));
         document.getElementById('btn-wire').addEventListener('click', () => this.setMode('wire'));
         document.getElementById('btn-export').addEventListener('click', () => this.openModal('export'));
         document.getElementById('btn-import').addEventListener('click', () => document.getElementById('import-file').click());
         document.getElementById('btn-inject').addEventListener('click', () => document.getElementById('inject-file').click());
+        document.getElementById('btn-limits').addEventListener('click', () => document.getElementById('limits-file').click());
         
         const btnSolve = document.getElementById('btn-solver-toggle');
         btnSolve.addEventListener('click', () => {
@@ -351,7 +349,7 @@ class SLDApp {
             e.target.value = '';
         });
 
-        // LIVE DATA INJECTOR WITH ZEROING LOGIC
+        // 1. LIVE DATA INJECTOR (GENS & LOADS)
         document.getElementById('inject-file').addEventListener('change', e => {
             const file = e.target.files[0];
             if (!file) return;
@@ -367,7 +365,6 @@ class SLDApp {
                         const valIdx = headers.indexOf('value');
                         
                         if (nameIdx > -1 && valIdx > -1) {
-                            // ZERO OUT GENS AND LOADS BEFORE APPLYING NEW DATA
                             this.model.nodes.forEach(n => {
                                 if (n.type === 'generator' || n.type === 'load') n.mw = 0;
                             });
@@ -384,7 +381,7 @@ class SLDApp {
                                     updated++;
                                 }
                             }
-                            alert(`Successfully injected CSV live data to ${updated} elements. Missing elements were set to 0 MW.`);
+                            alert(`Successfully injected CSV Live Data to ${updated} elements. Missing Gens/Loads were set to 0 MW.`);
                         } else {
                             alert("Error: CSV must contain exact headers: 'Name' and 'Value'.");
                         }
@@ -392,39 +389,116 @@ class SLDApp {
                 } else {
                     try {
                         const data = JSON.parse(evt.target.result);
-                        
-                        // ZERO OUT GENS AND LOADS BEFORE APPLYING NEW DATA
                         this.model.nodes.forEach(n => {
                             if (n.type === 'generator' || n.type === 'load') n.mw = 0;
                         });
 
-                        if (Array.isArray(data)) {
-                            data.forEach(item => {
-                                let node = this.model.nodes.find(n => n.name === item.name || n.id === item.id);
-                                if (node) {
-                                    if (item.mw !== undefined) node.mw = parseFloat(item.mw);
-                                    if (item.value !== undefined) node.mw = parseFloat(item.value);
-                                    if (item.status !== undefined) node.status = item.status;
-                                    updated++;
-                                }
-                            });
-                        } else {
-                            for (let key in data) {
-                                let node = this.model.nodes.find(n => n.name === key || n.id === key);
-                                if (node) {
-                                    if (data[key].mw !== undefined) node.mw = parseFloat(data[key].mw);
-                                    if (data[key].value !== undefined) node.mw = parseFloat(data[key].value);
-                                    if (data[key].status !== undefined) node.status = data[key].status;
-                                    updated++;
-                                }
+                        const processLiveNode = (item, key) => {
+                            let name = item.name || key;
+                            let node = this.model.nodes.find(n => n.name === name || n.id === name);
+                            if (node) {
+                                if (item.mw !== undefined) node.mw = parseFloat(item.mw);
+                                if (item.value !== undefined) node.mw = parseFloat(item.value);
+                                if (item.status !== undefined) node.status = item.status;
+                                updated++;
                             }
+                        };
+
+                        if (Array.isArray(data)) {
+                            data.forEach(item => processLiveNode(item));
+                        } else {
+                            for (let key in data) processLiveNode(data[key], key);
                         }
-                        alert(`Successfully applied JSON live data to ${updated} elements. Missing elements were set to 0 MW.`);
+                        alert(`Successfully applied JSON Live Data to ${updated} elements. Missing Gens/Loads were set to 0 MW.`);
                     } catch (err) {
                         alert("Invalid JSON format for data injection.");
                     }
                 }
-                
+                if (this.autoSolve) this.runPowerFlow();
+                this.updateInspector();
+            };
+            reader.readAsText(file);
+            e.target.value = ''; 
+        });
+
+        // 2. LIMITS DATA INJECTOR (LINES & TRANSFORMERS)
+        document.getElementById('limits-file').addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const ext = file.name.split('.').pop().toLowerCase();
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                let updated = 0;
+                if (ext === 'csv') {
+                    const lines = evt.target.result.split(/\r?\n/).filter(l => l.trim().length > 0);
+                    if (lines.length > 0) {
+                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                        const nameIdx = headers.indexOf('name');
+                        let valIdx = headers.indexOf('limit');
+                        if (valIdx === -1) valIdx = headers.indexOf('value'); 
+                        
+                        if (nameIdx > -1 && valIdx > -1) {
+                            for (let i = 1; i < lines.length; i++) {
+                                const cols = lines[i].split(',').map(c => c.trim());
+                                if (cols.length <= Math.max(nameIdx, valIdx)) continue;
+                                const name = cols[nameIdx];
+                                const val = parseFloat(cols[valIdx]);
+                                
+                                if (!isNaN(val)) {
+                                    let isUpdated = false;
+                                    let node = this.model.nodes.find(n => n.name === name);
+                                    if (node && node.type === 'transformer') {
+                                        node.ratingMVA = val;
+                                        isUpdated = true;
+                                    } else {
+                                        let wire = this.model.wires.find(w => w.name === name);
+                                        if (wire) {
+                                            wire.limit = val;
+                                            isUpdated = true;
+                                        }
+                                    }
+                                    if (isUpdated) updated++;
+                                }
+                            }
+                            alert(`Successfully applied Thermal Limits to ${updated} lines/transformers.`);
+                        } else {
+                            alert("Error: Limits CSV must contain 'Name' and 'Limit' (or 'Value') headers.");
+                        }
+                    }
+                } else {
+                    try {
+                        const data = JSON.parse(evt.target.result);
+                        const processLimitItem = (item, key) => {
+                            let name = item.name || key;
+                            let limitVal = item.limit !== undefined ? parseFloat(item.limit) : (item.value !== undefined ? parseFloat(item.value) : NaN);
+                            
+                            if (!isNaN(limitVal)) {
+                                let isUpdated = false;
+                                let node = this.model.nodes.find(n => n.name === name || n.id === name);
+                                if (node && node.type === 'transformer') {
+                                    node.ratingMVA = limitVal;
+                                    isUpdated = true;
+                                } else {
+                                    let wire = this.model.wires.find(w => w.name === name || w.id === name);
+                                    if (wire) {
+                                        wire.limit = limitVal;
+                                        isUpdated = true;
+                                    }
+                                }
+                                if (isUpdated) updated++;
+                            }
+                        };
+
+                        if (Array.isArray(data)) {
+                            data.forEach(item => processLimitItem(item));
+                        } else {
+                            for (let key in data) processLimitItem(data[key], key);
+                        }
+                        alert(`Successfully applied JSON Thermal Limits to ${updated} lines/transformers.`);
+                    } catch (err) {
+                        alert("Invalid JSON format for limits injection.");
+                    }
+                }
                 if (this.autoSolve) this.runPowerFlow();
                 this.updateInspector();
             };
