@@ -75,7 +75,7 @@
     <header>
         <div class="logo-area">
             <span>⚡ RTO JAVASCRIPT KCL NETWORK SOLVER</span>
-            <span class="logo-badge">FINAL v8.3</span>
+            <span class="logo-badge">FINAL v8.4</span>
         </div>
         <div class="header-tools">
             <button class="btn active" id="btn-select" title="Select & Move (V)">
@@ -351,7 +351,7 @@ class SLDApp {
             e.target.value = '';
         });
 
-        // RESTORED CSV & JSON LIVE DATA INJECTOR
+        // LIVE DATA INJECTOR WITH ZEROING LOGIC
         document.getElementById('inject-file').addEventListener('change', e => {
             const file = e.target.files[0];
             if (!file) return;
@@ -365,7 +365,13 @@ class SLDApp {
                         const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
                         const nameIdx = headers.indexOf('name');
                         const valIdx = headers.indexOf('value');
+                        
                         if (nameIdx > -1 && valIdx > -1) {
+                            // ZERO OUT GENS AND LOADS BEFORE APPLYING NEW DATA
+                            this.model.nodes.forEach(n => {
+                                if (n.type === 'generator' || n.type === 'load') n.mw = 0;
+                            });
+
                             for (let i = 1; i < lines.length; i++) {
                                 const cols = lines[i].split(',').map(c => c.trim());
                                 if (cols.length <= Math.max(nameIdx, valIdx)) continue;
@@ -378,7 +384,7 @@ class SLDApp {
                                     updated++;
                                 }
                             }
-                            alert(`Successfully injected CSV live data to ${updated} elements!`);
+                            alert(`Successfully injected CSV live data to ${updated} elements. Missing elements were set to 0 MW.`);
                         } else {
                             alert("Error: CSV must contain exact headers: 'Name' and 'Value'.");
                         }
@@ -386,6 +392,12 @@ class SLDApp {
                 } else {
                     try {
                         const data = JSON.parse(evt.target.result);
+                        
+                        // ZERO OUT GENS AND LOADS BEFORE APPLYING NEW DATA
+                        this.model.nodes.forEach(n => {
+                            if (n.type === 'generator' || n.type === 'load') n.mw = 0;
+                        });
+
                         if (Array.isArray(data)) {
                             data.forEach(item => {
                                 let node = this.model.nodes.find(n => n.name === item.name || n.id === item.id);
@@ -407,18 +419,17 @@ class SLDApp {
                                 }
                             }
                         }
-                        alert(`Successfully applied JSON live data to ${updated} elements!`);
+                        alert(`Successfully applied JSON live data to ${updated} elements. Missing elements were set to 0 MW.`);
                     } catch (err) {
                         alert("Invalid JSON format for data injection.");
                     }
                 }
                 
-                // Force solve and UI update after data injection
                 if (this.autoSolve) this.runPowerFlow();
                 this.updateInspector();
             };
             reader.readAsText(file);
-            e.target.value = ''; // Reset input to allow re-uploading the same file
+            e.target.value = ''; 
         });
 
         document.getElementById('modal-close').addEventListener('click', () => document.getElementById('json-modal').style.display = 'none');
