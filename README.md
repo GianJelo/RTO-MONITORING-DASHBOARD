@@ -75,7 +75,7 @@
     <header>
         <div class="logo-area">
             <span>⚡ RTO JAVASCRIPT KCL NETWORK SOLVER</span>
-            <span class="logo-badge">FINAL v8.2</span>
+            <span class="logo-badge">FINAL v8.3</span>
         </div>
         <div class="header-tools">
             <button class="btn active" id="btn-select" title="Select & Move (V)">
@@ -349,6 +349,76 @@ class SLDApp {
             };
             reader.readAsText(file);
             e.target.value = '';
+        });
+
+        // RESTORED CSV & JSON LIVE DATA INJECTOR
+        document.getElementById('inject-file').addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const ext = file.name.split('.').pop().toLowerCase();
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                let updated = 0;
+                if (ext === 'csv') {
+                    const lines = evt.target.result.split(/\r?\n/).filter(l => l.trim().length > 0);
+                    if (lines.length > 0) {
+                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                        const nameIdx = headers.indexOf('name');
+                        const valIdx = headers.indexOf('value');
+                        if (nameIdx > -1 && valIdx > -1) {
+                            for (let i = 1; i < lines.length; i++) {
+                                const cols = lines[i].split(',').map(c => c.trim());
+                                if (cols.length <= Math.max(nameIdx, valIdx)) continue;
+                                const name = cols[nameIdx];
+                                const val = parseFloat(cols[valIdx]);
+                                
+                                let node = this.model.nodes.find(n => n.name === name);
+                                if (node && !isNaN(val)) {
+                                    node.mw = val;
+                                    updated++;
+                                }
+                            }
+                            alert(`Successfully injected CSV live data to ${updated} elements!`);
+                        } else {
+                            alert("Error: CSV must contain exact headers: 'Name' and 'Value'.");
+                        }
+                    }
+                } else {
+                    try {
+                        const data = JSON.parse(evt.target.result);
+                        if (Array.isArray(data)) {
+                            data.forEach(item => {
+                                let node = this.model.nodes.find(n => n.name === item.name || n.id === item.id);
+                                if (node) {
+                                    if (item.mw !== undefined) node.mw = parseFloat(item.mw);
+                                    if (item.value !== undefined) node.mw = parseFloat(item.value);
+                                    if (item.status !== undefined) node.status = item.status;
+                                    updated++;
+                                }
+                            });
+                        } else {
+                            for (let key in data) {
+                                let node = this.model.nodes.find(n => n.name === key || n.id === key);
+                                if (node) {
+                                    if (data[key].mw !== undefined) node.mw = parseFloat(data[key].mw);
+                                    if (data[key].value !== undefined) node.mw = parseFloat(data[key].value);
+                                    if (data[key].status !== undefined) node.status = data[key].status;
+                                    updated++;
+                                }
+                            }
+                        }
+                        alert(`Successfully applied JSON live data to ${updated} elements!`);
+                    } catch (err) {
+                        alert("Invalid JSON format for data injection.");
+                    }
+                }
+                
+                // Force solve and UI update after data injection
+                if (this.autoSolve) this.runPowerFlow();
+                this.updateInspector();
+            };
+            reader.readAsText(file);
+            e.target.value = ''; // Reset input to allow re-uploading the same file
         });
 
         document.getElementById('modal-close').addEventListener('click', () => document.getElementById('json-modal').style.display = 'none');
