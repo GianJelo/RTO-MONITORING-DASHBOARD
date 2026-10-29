@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -222,7 +223,11 @@ class NetworkModel {
         this.nodes = [];
         this.wires = [];
     }
-    exportJSON() { return JSON.stringify({ nodes: this.nodes, wires: this.wires }, null, 2); }
+
+    exportJSON() {
+        return JSON.stringify({ nodes: this.nodes, wires: this.wires }, null, 2);
+    }
+
     importJSON(jsonStr) {
         try {
             const data = JSON.parse(jsonStr);
@@ -231,7 +236,9 @@ class NetworkModel {
                 this.wires = data.wires;
                 return true;
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+        }
         return false;
     }
 }
@@ -265,7 +272,9 @@ class SLDApp {
 
     initEvents() {
         window.addEventListener('resize', () => this.resize());
+
         const container = document.getElementById('canvas-container');
+        
         container.addEventListener('pointerdown', e => this.onPointerDown(e));
         container.addEventListener('pointermove', e => this.onPointerMove(e));
         container.addEventListener('pointerup', e => this.onPointerUp(e));
@@ -279,7 +288,9 @@ class SLDApp {
                 const wy = (this.canvas.height / 2 - this.pan.y) / this.zoom;
                 this.addElement(type, wx, wy);
             });
-            item.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', type); });
+            item.addEventListener('dragstart', e => {
+                e.dataTransfer.setData('text/plain', type);
+            });
         });
 
         document.getElementById('btn-select').addEventListener('click', () => this.setMode('select'));
@@ -331,13 +342,15 @@ class SLDApp {
                     if (this.autoSolve) this.runPowerFlow(); 
                     this.updateInspector();
                     alert("Model imported successfully!");
-                } else { alert("Invalid JSON file format."); }
+                } else {
+                    alert("Invalid JSON file format.");
+                }
             };
             reader.readAsText(file);
             e.target.value = '';
         });
 
-        // 1. LIVE DATA INJECTOR
+        // 1. LIVE DATA INJECTOR (GENS & LOADS)
         document.getElementById('inject-file').addEventListener('change', e => {
             const file = e.target.files[0];
             if (!file) return;
@@ -353,22 +366,34 @@ class SLDApp {
                         const valIdx = headers.indexOf('value');
                         
                         if (nameIdx > -1 && valIdx > -1) {
-                            this.model.nodes.forEach(n => { if (n.type === 'generator' || n.type === 'load') n.mw = 0; });
+                            this.model.nodes.forEach(n => {
+                                if (n.type === 'generator' || n.type === 'load') n.mw = 0;
+                            });
+
                             for (let i = 1; i < lines.length; i++) {
                                 const cols = lines[i].split(',').map(c => c.trim());
                                 if (cols.length <= Math.max(nameIdx, valIdx)) continue;
                                 const name = cols[nameIdx];
                                 const val = parseFloat(cols[valIdx]);
+                                
                                 let node = this.model.nodes.find(n => n.name === name);
-                                if (node && !isNaN(val)) { node.mw = val; updated++; }
+                                if (node && !isNaN(val)) {
+                                    node.mw = val;
+                                    updated++;
+                                }
                             }
-                            alert(`Successfully injected CSV Live Data to ${updated} elements.`);
-                        } else { alert("Error: CSV must contain exact headers: 'Name' and 'Value'."); }
+                            alert(`Successfully injected CSV Live Data to ${updated} elements. Missing Gens/Loads were set to 0 MW.`);
+                        } else {
+                            alert("Error: CSV must contain exact headers: 'Name' and 'Value'.");
+                        }
                     }
                 } else {
                     try {
                         const data = JSON.parse(evt.target.result);
-                        this.model.nodes.forEach(n => { if (n.type === 'generator' || n.type === 'load') n.mw = 0; });
+                        this.model.nodes.forEach(n => {
+                            if (n.type === 'generator' || n.type === 'load') n.mw = 0;
+                        });
+
                         const processLiveNode = (item, key) => {
                             let name = item.name || key;
                             let node = this.model.nodes.find(n => n.name === name || n.id === name);
@@ -379,10 +404,16 @@ class SLDApp {
                                 updated++;
                             }
                         };
-                        if (Array.isArray(data)) data.forEach(item => processLiveNode(item));
-                        else for (let key in data) processLiveNode(data[key], key);
-                        alert(`Successfully applied JSON Live Data to ${updated} elements.`);
-                    } catch (err) { alert("Invalid JSON format for data injection."); }
+
+                        if (Array.isArray(data)) {
+                            data.forEach(item => processLiveNode(item));
+                        } else {
+                            for (let key in data) processLiveNode(data[key], key);
+                        }
+                        alert(`Successfully applied JSON Live Data to ${updated} elements. Missing Gens/Loads were set to 0 MW.`);
+                    } catch (err) {
+                        alert("Invalid JSON format for data injection.");
+                    }
                 }
                 if (this.autoSolve) this.runPowerFlow();
                 this.updateInspector();
@@ -391,7 +422,7 @@ class SLDApp {
             e.target.value = ''; 
         });
 
-        // 2. LIMITS DATA INJECTOR
+        // 2. LIMITS DATA INJECTOR (LINES & TRANSFORMERS)
         document.getElementById('limits-file').addEventListener('change', e => {
             const file = e.target.files[0];
             if (!file) return;
@@ -417,16 +448,23 @@ class SLDApp {
                                 if (!isNaN(val)) {
                                     let isUpdated = false;
                                     let node = this.model.nodes.find(n => n.name === name);
-                                    if (node && node.type === 'transformer') { node.ratingMVA = val; isUpdated = true; } 
-                                    else {
+                                    if (node && node.type === 'transformer') {
+                                        node.ratingMVA = val;
+                                        isUpdated = true;
+                                    } else {
                                         let wire = this.model.wires.find(w => w.name === name);
-                                        if (wire) { wire.limit = val; isUpdated = true; }
+                                        if (wire) {
+                                            wire.limit = val;
+                                            isUpdated = true;
+                                        }
                                     }
                                     if (isUpdated) updated++;
                                 }
                             }
                             alert(`Successfully applied Thermal Limits to ${updated} lines/transformers.`);
-                        } else { alert("Error: Limits CSV must contain 'Name' and 'Limit' (or 'Value') headers."); }
+                        } else {
+                            alert("Error: Limits CSV must contain 'Name' and 'Limit' (or 'Value') headers.");
+                        }
                     }
                 } else {
                     try {
@@ -434,21 +472,33 @@ class SLDApp {
                         const processLimitItem = (item, key) => {
                             let name = item.name || key;
                             let limitVal = item.limit !== undefined ? parseFloat(item.limit) : (item.value !== undefined ? parseFloat(item.value) : NaN);
+                            
                             if (!isNaN(limitVal)) {
                                 let isUpdated = false;
                                 let node = this.model.nodes.find(n => n.name === name || n.id === name);
-                                if (node && node.type === 'transformer') { node.ratingMVA = limitVal; isUpdated = true; } 
-                                else {
+                                if (node && node.type === 'transformer') {
+                                    node.ratingMVA = limitVal;
+                                    isUpdated = true;
+                                } else {
                                     let wire = this.model.wires.find(w => w.name === name || w.id === name);
-                                    if (wire) { wire.limit = limitVal; isUpdated = true; }
+                                    if (wire) {
+                                        wire.limit = limitVal;
+                                        isUpdated = true;
+                                    }
                                 }
                                 if (isUpdated) updated++;
                             }
                         };
-                        if (Array.isArray(data)) data.forEach(item => processLimitItem(item));
-                        else for (let key in data) processLimitItem(data[key], key);
+
+                        if (Array.isArray(data)) {
+                            data.forEach(item => processLimitItem(item));
+                        } else {
+                            for (let key in data) processLimitItem(data[key], key);
+                        }
                         alert(`Successfully applied JSON Thermal Limits to ${updated} lines/transformers.`);
-                    } catch (err) { alert("Invalid JSON format for limits injection."); }
+                    } catch (err) {
+                        alert("Invalid JSON format for limits injection.");
+                    }
                 }
                 if (this.autoSolve) this.runPowerFlow();
                 this.updateInspector();
@@ -471,7 +521,9 @@ class SLDApp {
                 if (this.autoSolve) this.runPowerFlow();
                 this.updateInspector();
                 alert("Model successfully loaded!");
-            } else { alert("Invalid JSON data."); }
+            } else {
+                alert("Invalid JSON data.");
+            }
         });
 
         window.addEventListener('keydown', e => {
@@ -484,7 +536,9 @@ class SLDApp {
                     const w = this.selectedElement.width;
                     this.selectedElement.width = this.selectedElement.height;
                     this.selectedElement.height = w;
-                } else { this.selectedElement.orientation = this.selectedElement.orientation === 'H' ? 'V' : 'H'; }
+                } else {
+                    this.selectedElement.orientation = this.selectedElement.orientation === 'H' ? 'V' : 'H';
+                }
                 this.updateInspector();
             }
             if ((e.key === 'Delete' || e.key === 'Backspace')) {
@@ -511,11 +565,17 @@ class SLDApp {
         const id = 'el_' + Math.random().toString(36).substr(2, 6);
         let newNode = { id, type, name: `${type.toUpperCase()}_${this.model.nodes.length + 1}`, x: x, y: y, status: 'closed' };
         
-        if (type === 'bus') { newNode.width = 140; newNode.height = 16; newNode.voltage = '230 kV'; newNode.orientation = 'H'; } 
-        else if (type === 'generator') { newNode.mw = 25; newNode.maxMw = 50; } 
-        else if (type === 'load') { newNode.mw = 20; } 
-        else if (type === 'transformer') { newNode.reactance = 0.05; newNode.ratingMVA = 100; newNode.orientation = 'V'; } 
-        else if (type === 'breaker') { newNode.orientation = 'V'; }
+        if (type === 'bus') {
+            newNode.width = 140; newNode.height = 16; newNode.voltage = '230 kV'; newNode.orientation = 'H';
+        } else if (type === 'generator') {
+            newNode.mw = 25; newNode.maxMw = 50;
+        } else if (type === 'load') {
+            newNode.mw = 20;
+        } else if (type === 'transformer') {
+            newNode.reactance = 0.05; newNode.ratingMVA = 100; newNode.orientation = 'V';
+        } else if (type === 'breaker') {
+            newNode.orientation = 'V';
+        }
 
         this.model.nodes.push(newNode);
         this.selectedElement = newNode;
@@ -661,4 +721,783 @@ class SLDApp {
                             });
                             
                             this.model.wires.push({ id: 'w_' + Math.random().toString(36).substr(2,6), from: this.wireStartNode.id, to: xfrId, reactance: 0.01, limit: 100, status: 'closed' });
-                            this.model.wires.push({ id: 'w_' + Math.random().toString(3
+                            this.model.wires.push({ id: 'w_' + Math.random().toString(36).substr(2,6), from: xfrId, to: clickedNode.id, reactance: 0.01, limit: 100, status: 'closed' });
+                            this.wireStartNode = null;
+                            return;
+                        }
+                    }
+
+                    const wireId = 'w_' + Math.random().toString(36).substr(2, 6);
+                    this.model.wires.push({
+                        id: wireId, from: this.wireStartNode.id, to: clickedNode.id, name: `TL_${this.model.wires.length + 1}`,
+                        reactance: 0.03, limit: 100, status: 'closed'
+                    });
+                    this.wireStartNode = null;
+                }
+            }
+        }
+    }
+
+    onPointerMove(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+        const wx = (cx - this.pan.x) / this.zoom;
+        const wy = (cy - this.pan.y) / this.zoom;
+        this.mousePos = { x: wx, y: wy };
+
+        if (this.isPanning) {
+            this.pan.x += cx - this.dragStart.x;
+            this.pan.y += cy - this.dragStart.y;
+            this.dragStart = { x: cx, y: cy };
+            return;
+        }
+
+        if (this.isDraggingNode && this.selectedElement) {
+            this.selectedElement.x = wx - this.dragStart.x;
+            this.selectedElement.y = wy - this.dragStart.y;
+        }
+
+        const hoveredNode = this.findNodeAt(wx, wy);
+        const hoveredWire = !hoveredNode ? this.findWireAt(wx, wy) : null;
+        const tt = document.getElementById('tooltip');
+        const ttStatus = document.getElementById('tt-status');
+        
+        if (hoveredNode) {
+            document.getElementById('tt-title').innerText = hoveredNode.name || "Unnamed Node";
+            document.getElementById('tt-type').innerText = hoveredNode.type.toUpperCase();
+            
+            let flowText = 'N/A';
+            if (!this.autoSolve) {
+                flowText = 'Auto-Solve OFF';
+            } else {
+                if (hoveredNode.type === 'generator' || hoveredNode.type === 'load') {
+                    flowText = `${(hoveredNode.displayMw !== undefined ? hoveredNode.displayMw : hoveredNode.mw || 0).toFixed(1)} MW`;
+                } else if (['transformer', 'breaker', 'bus'].includes(hoveredNode.type)) {
+                    flowText = `${(hoveredNode.flow || 0).toFixed(1)} MW (Thru)`;
+                }
+            }
+            
+            document.getElementById('tt-flow').innerText = flowText;
+            
+            if (hoveredNode.type === 'transformer' && this.autoSolve) {
+                 const isOverloaded = (hoveredNode.loading || 0) > 100;
+                 ttStatus.innerText = `${hoveredNode.status || 'closed'} (${((hoveredNode.loading || 0)).toFixed(0)}% cap)`;
+                 if (isOverloaded) ttStatus.classList.add('overload'); else ttStatus.classList.remove('overload');
+            } else {
+                 ttStatus.innerText = hoveredNode.status || 'closed';
+                 ttStatus.classList.remove('overload');
+            }
+            
+            tt.style.display = 'block';
+            tt.style.left = (cx + 15) + 'px';
+            tt.style.top = (cy + 15) + 'px';
+        } else if (hoveredWire) {
+            document.getElementById('tt-title').innerText = hoveredWire.name || "Unnamed Line";
+            document.getElementById('tt-type').innerText = 'TRANSMISSION LINE';
+            document.getElementById('tt-flow').innerText = this.autoSolve ? `${(hoveredWire.flow || 0).toFixed(1)} MW` : 'Auto-Solve OFF';
+            
+            const isOverloaded = this.autoSolve && (hoveredWire.loading || 0) > 100;
+            ttStatus.innerText = this.autoSolve ? `${hoveredWire.status} (${((hoveredWire.loading || 0)).toFixed(0)}% cap)` : hoveredWire.status;
+            if (isOverloaded) ttStatus.classList.add('overload'); else ttStatus.classList.remove('overload');
+
+            tt.style.display = 'block';
+            tt.style.left = (cx + 15) + 'px';
+            tt.style.top = (cy + 15) + 'px';
+        } else {
+            tt.style.display = 'none';
+        }
+    }
+
+    onPointerUp(e) {
+        this.isPanning = false;
+        this.isDraggingNode = false;
+    }
+
+    onWheel(e) {
+        e.preventDefault();
+        const zoomFactor = 1.1;
+        const oldZoom = this.zoom;
+        if (e.deltaY < 0) { this.zoom *= zoomFactor; } 
+        else { this.zoom /= zoomFactor; }
+        this.zoom = Math.max(0.3, Math.min(3.0, this.zoom));
+
+        const rect = this.canvas.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+
+        this.pan.x = cx - (cx - this.pan.x) * (this.zoom / oldZoom);
+        this.pan.y = cy - (cy - this.pan.y) * (this.zoom / oldZoom);
+    }
+
+    openModal(mode) {
+        const modal = document.getElementById('json-modal');
+        const title = document.getElementById('modal-title');
+        const textarea = document.getElementById('json-textarea');
+        const actionBtn = document.getElementById('modal-action');
+
+        if (mode === 'export') {
+            title.innerText = 'Export Model JSON';
+            textarea.value = this.model.exportJSON();
+            textarea.readOnly = true;
+            actionBtn.style.display = 'none';
+            document.getElementById('modal-copy').style.display = 'block';
+        }
+        modal.style.display = 'flex';
+    }
+
+    runPowerFlow() {
+        if (!this.autoSolve) return; 
+
+        let globalTotalGen = 0;
+        let globalTotalLoad = 0;
+
+        this.model.wires.forEach(w => { w.flow = 0; w.loading = 0; w.direction = 1; });
+        let nodeMap = {};
+        this.model.nodes.forEach(n => {
+            nodeMap[n.id] = n;
+            n.displayMw = 0; 
+            n.flow = 0; 
+            n.loading = 0;
+        });
+
+        let activeWires = this.model.wires.filter(w => {
+            if (w.status !== 'closed') return false;
+            let n1 = nodeMap[w.from];
+            let n2 = nodeMap[w.to];
+            if (!n1 || !n2) return false;
+            if (n1.status === 'open' || n2.status === 'open') return false;
+            return true;
+        });
+
+        let adj = {};
+        this.model.nodes.forEach(n => adj[n.id] = []);
+        activeWires.forEach(w => {
+            adj[w.from].push({ to: w.to, wire: w });
+            adj[w.to].push({ to: w.from, wire: w });
+        });
+
+        let unvisited = new Set(this.model.nodes.map(n => n.id));
+        let islands = [];
+
+        while (unvisited.size > 0) {
+            let start = unvisited.values().next().value;
+            let comp = [];
+            let q = [start];
+            unvisited.delete(start);
+
+            while (q.length > 0) {
+                let curr = q.shift();
+                comp.push(nodeMap[curr]);
+
+                for (let edge of adj[curr]) {
+                    if (unvisited.has(edge.to)) {
+                        unvisited.delete(edge.to);
+                        q.push(edge.to);
+                    }
+                }
+            }
+            islands.push(comp);
+        }
+
+        islands.forEach(comp => {
+            let gens = comp.filter(n => n.type === 'generator' && n.status === 'closed');
+            let loads = comp.filter(n => n.type === 'load' && n.status === 'closed');
+
+            let totalG = gens.reduce((s, g) => s + (g.mw || 0), 0);
+            let totalL = loads.reduce((s, l) => s + (l.mw || 0), 0); 
+
+            globalTotalGen += totalG;
+            globalTotalLoad += totalL;
+
+            let balancedP = Math.min(totalG, totalL);
+            let P_inj = {};
+            comp.forEach(n => P_inj[n.id] = 0);
+
+            gens.forEach(g => {
+                let actual = totalG > 0 ? (g.mw * balancedP / totalG) : 0;
+                P_inj[g.id] = actual;
+                g.displayMw = actual;
+            });
+
+            loads.forEach(l => {
+                let actual = totalL !== 0 ? (l.mw * balancedP / totalL) : 0;
+                P_inj[l.id] = -actual;
+                l.displayMw = actual;
+            });
+
+            if (comp.length > 1) {
+                let N = comp.length;
+                let P_vec = Array(N).fill(0);
+
+                comp.forEach((n, i) => P_vec[i] = P_inj[n.id]);
+
+                let islandNodeIds = new Set(comp.map(n => n.id));
+                let islandWires = activeWires.filter(w => islandNodeIds.has(w.from) && islandNodeIds.has(w.to));
+
+                // Initialize effective reactances for iterative flow adjustment
+                islandWires.forEach(w => {
+                    let n1 = nodeMap[w.from];
+                    let n2 = nodeMap[w.to];
+                    let x = Math.max(0.001, (w.reactance || 0.03));
+                    if (n1.type === 'transformer') x += (n1.reactance || 0) / 2;
+                    if (n2.type === 'transformer') x += (n2.reactance || 0) / 2;
+                    w.eff_x = x;
+                    w.base_limit = w.limit || 100;
+                });
+
+                let theta = Array(N).fill(0);
+                let max_iter = 15; // Iterative loop to adjust flows when limits are reached
+
+                for (let iter = 0; iter < max_iter; iter++) {
+                    let B_iter = Array(N).fill(0).map(() => Array(N).fill(0));
+                    
+                    islandWires.forEach(w => {
+                        let i = comp.findIndex(n => n.id === w.from);
+                        let j = comp.findIndex(n => n.id === w.to);
+                        let b = 1.0 / w.eff_x;
+                        B_iter[i][j] -= b;
+                        B_iter[j][i] -= b;
+                        B_iter[i][i] += b;
+                        B_iter[j][j] += b;
+                    });
+
+                    theta = Array(N).fill(0);
+                    let nSub = N - 1;
+                    
+                    if (nSub > 0) {
+                        let B_sub = Array(nSub).fill(0).map(() => Array(nSub).fill(0));
+                        let P_sub = Array(nSub).fill(0);
+
+                        for (let i = 0; i < nSub; i++) {
+                            P_sub[i] = P_vec[i + 1];
+                            for (let j = 0; j < nSub; j++) {
+                                B_sub[i][j] = B_iter[i + 1][j + 1];
+                            }
+                            B_sub[i][i] += 1e-4; 
+                        }
+
+                        let theta_sub = GaussianElimination(B_sub, P_sub);
+                        for (let i = 0; i < nSub; i++) theta[i + 1] = theta_sub[i];
+                    }
+
+                    let thetaMap = {};
+                    comp.forEach((n, i) => thetaMap[n.id] = theta[i]);
+
+                    let needs_resolve = false;
+                    islandWires.forEach(w => {
+                        let thA = thetaMap[w.from];
+                        let thB = thetaMap[w.to];
+                        let flow_A_to_B = (thA - thB) / w.eff_x;
+                        w.temp_flow = flow_A_to_B;
+
+                        // Limit checking: if flow exceeds limit, adjust effective reactance
+                        if (Math.abs(flow_A_to_B) > w.base_limit * 1.01) {
+                            w.eff_x = w.eff_x * (Math.abs(flow_A_to_B) / w.base_limit);
+                            needs_resolve = true;
+                        }
+                    });
+
+                    if (!needs_resolve) break;
+                }
+
+                // Final assignments: limit flow to thermal limit as requested
+                islandWires.forEach(w => {
+                    let flow = w.temp_flow;
+                    let absFlow = Math.abs(flow);
+                    
+                    w.loading = (absFlow / w.base_limit) * 100;
+
+                    if (absFlow > w.base_limit) {
+                        absFlow = w.base_limit; // Enforce hard cap
+                    }
+                    
+                    w.flow = absFlow;
+                    w.direction = flow >= 0 ? 1 : -1;
+                });
+            }
+        });
+
+        this.model.nodes.forEach(n => {
+            if (['transformer', 'breaker', 'bus'].includes(n.type)) {
+                let connectedWires = this.model.wires.filter(w => (w.from === n.id || w.to === n.id) && w.status === 'closed');
+                let flowSum = 0;
+                connectedWires.forEach(w => { flowSum += Math.abs(w.flow || 0); });
+                n.flow = flowSum / 2;
+                
+                if (n.type === 'transformer') {
+                    n.loading = (n.flow / (n.ratingMVA || 100)) * 100;
+                }
+
+                if (this.selectedElement && this.selectedElement.id === n.id) {
+                    const flowInspectorEl = document.getElementById('insp-flow-val');
+                    if (flowInspectorEl) flowInspectorEl.innerText = this.autoSolve ? `${n.flow.toFixed(1)} MW` : 'Auto-Solve OFF';
+                }
+            }
+        });
+
+        const balance = globalTotalGen - globalTotalLoad;
+        document.getElementById('sys-gen').innerText = globalTotalGen.toFixed(1) + ' MW';
+        document.getElementById('sys-load').innerText = globalTotalLoad.toFixed(1) + ' MW';
+        document.getElementById('sys-balance').innerText = (balance >= 0 ? '+' : '') + balance.toFixed(1) + ' MW';
+
+        const deficitRow = document.getElementById('deficit-row');
+        if (globalTotalGen < globalTotalLoad) {
+            deficitRow.style.display = 'flex';
+            document.getElementById('sys-deficit').innerText = `DEFICIT: ${(globalTotalLoad - globalTotalGen).toFixed(1)} MW`;
+        } else {
+            deficitRow.style.display = 'none';
+        }
+    }
+
+    updateInspector() {
+        const container = document.getElementById('inspector-content');
+        if (!this.selectedElement && !this.selectedWire) {
+            container.innerHTML = `<div style="color: #6b7280; font-size: 11px; text-align: center; margin-top: 40px;">Select any node, wire, or equipment to inspect and configure parameters.</div>`;
+            return;
+        }
+
+        let html = '';
+        if (this.selectedElement) {
+            const el = this.selectedElement;
+            const fallbackName = el.name !== undefined ? el.name : "";
+            const thruFlowText = this.autoSolve ? `${(el.flow || 0).toFixed(1)} MW` : 'Auto-Solve OFF';
+
+            html += `
+                <div class="form-group"><label>Identifier Name</label><input type="text" class="form-control" id="insp-name" value="${fallbackName}"></div>
+                <div class="form-group"><label>Element Type</label><input type="text" class="form-control" value="${el.type.toUpperCase()}" disabled style="color:#9ca3af;"></div>
+                <div class="form-group"><label>Status</label>
+                    <select class="form-control" id="insp-status">
+                        <option value="closed" ${el.status === 'closed' ? 'selected' : ''}>Closed (Energized)</option>
+                        <option value="open" ${el.status === 'open' ? 'selected' : ''}>Open (Tripped)</option>
+                    </select>
+                </div>
+            `;
+
+            if (el.type === 'bus') {
+                html += `
+                    <div class="form-group"><label>Throughput Flow</label><div style="font-family: monospace; font-size: 13px; color: #34d399;" id="insp-flow-val">${thruFlowText}</div></div>
+                    <div class="form-group"><label>Voltage Level</label>
+                        <select class="form-control" id="insp-voltage">
+                            <option value="500 kV" ${el.voltage === '500 kV' ? 'selected' : ''}>500 kV</option>
+                            <option value="230 kV" ${el.voltage === '230 kV' ? 'selected' : ''}>230 kV</option>
+                            <option value="138 kV" ${el.voltage === '138 kV' ? 'selected' : ''}>138 kV</option>
+                            <option value="69 kV" ${el.voltage === '69 kV' ? 'selected' : ''}>69 kV</option>
+                            <option value="34.5 kV" ${el.voltage === '34.5 kV' ? 'selected' : ''}>34.5 kV</option>
+                            <option value="13.8 kV" ${el.voltage === '13.8 kV' ? 'selected' : ''}>13.8 kV</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Bus Width (px)</label><input type="number" class="form-control" id="insp-width" value="${el.width || 140}"></div>
+                `;
+            } else if (el.type === 'generator') {
+                html += `
+                    <div class="form-group"><label>Generation (MW)</label><input type="number" class="form-control" id="insp-mw" value="${el.mw || 0}"></div>
+                    <div class="form-group"><label>Max Capacity (MW)</label><input type="number" class="form-control" id="insp-maxmw" value="${el.maxMw || 50}"></div>
+                `;
+                if (el.cost !== undefined) {
+                    html += `<div class="form-group"><label>Cost Factor</label><input type="number" class="form-control" id="insp-cost" value="${el.cost}"></div>`;
+                }
+            } else if (el.type === 'load') {
+                html += `
+                    <div class="form-group"><label>Active Demand (MW)</label><input type="number" class="form-control" id="insp-loadmw" value="${el.mw || 0}"></div>
+                `;
+            } else if (el.type === 'transformer') {
+                html += `
+                    <div class="form-group"><label>Active Flow Through (MW)</label><div style="font-family: monospace; font-size: 13px; color: #34d399;" id="insp-flow-val">${thruFlowText}</div></div>
+                    <div class="form-group"><label>Reactance (X pu)</label><input type="number" step="0.01" class="form-control" id="insp-x" value="${el.reactance || 0.05}"></div>
+                    <div class="form-group"><label>Rating (MVA)</label><input type="number" class="form-control" id="insp-mva" value="${el.ratingMVA || 100}"></div>
+                `;
+            } else if (el.type === 'breaker') {
+                html += `
+                    <div class="form-group"><label>Active Flow Through (MW)</label><div style="font-family: monospace; font-size: 13px; color: #34d399;" id="insp-flow-val">${thruFlowText}</div></div>
+                `;
+            }
+
+            html += `
+                <div style="display: flex; gap: 8px; margin-top: 12px;">
+                    <button class="btn" style="flex: 1;" id="btn-duplicate">Duplicate</button>
+                    <button class="btn btn-warning" style="flex: 1;" id="btn-delete">Delete</button>
+                </div>
+            `;
+        } else if (this.selectedWire) {
+            const w = this.selectedWire;
+            html += `
+                <div class="form-group"><label>Line Name</label><input type="text" class="form-control" id="wire-name" value="${w.name || 'Unnamed Line'}"></div>
+                <div class="form-group"><label>Status</label>
+                    <select class="form-control" id="wire-status">
+                        <option value="closed" ${w.status === 'closed' ? 'selected' : ''}>In Service</option>
+                        <option value="open" ${w.status === 'open' ? 'selected' : ''}>Out of Service</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Reactance (X pu)</label><input type="number" step="0.01" class="form-control" id="wire-x" value="${w.reactance || 0.03}"></div>
+                <div class="form-group"><label>Thermal Limit (MW/MVA)</label><input type="number" class="form-control" id="wire-limit" value="${w.limit || 100}"></div>
+                <div style="margin-top: 12px;">
+                    <button class="btn btn-warning" style="width: 100%;" id="btn-delete-wire">Delete Line</button>
+                </div>
+            `;
+        }
+
+        container.innerHTML = html;
+
+        const bindInput = (id, prop, isFloat = false) => {
+            const elInput = document.getElementById(id);
+            if (elInput) {
+                elInput.addEventListener('input', e => {
+                    if (this.selectedElement) {
+                        this.selectedElement[prop] = isFloat ? parseFloat(e.target.value) || 0 : e.target.value;
+                    } else if (this.selectedWire) {
+                        this.selectedWire[prop] = isFloat ? parseFloat(e.target.value) || 0 : e.target.value;
+                    }
+                    this.runPowerFlow();
+                });
+            }
+        };
+
+        bindInput('insp-name', 'name');
+        bindInput('insp-status', 'status');
+        bindInput('insp-voltage', 'voltage');
+        bindInput('insp-width', 'width', true);
+        bindInput('insp-mw', 'mw', true);
+        bindInput('insp-maxmw', 'maxMw', true);
+        bindInput('insp-cost', 'cost', true);
+        bindInput('insp-loadmw', 'mw', true);
+        bindInput('insp-x', 'reactance', true);
+        bindInput('insp-mva', 'ratingMVA', true);
+        bindInput('wire-name', 'name');
+        bindInput('wire-status', 'status');
+        bindInput('wire-x', 'reactance', true);
+        bindInput('wire-limit', 'limit', true);
+
+        const delBtn = document.getElementById('btn-delete');
+        if (delBtn) delBtn.addEventListener('click', () => this.deleteNode(this.selectedElement));
+
+        const delWireBtn = document.getElementById('btn-delete-wire');
+        if (delWireBtn) delWireBtn.addEventListener('click', () => this.deleteWire(this.selectedWire));
+
+        const dupBtn = document.getElementById('btn-duplicate');
+        if (dupBtn) dupBtn.addEventListener('click', () => {
+            const clone = JSON.parse(JSON.stringify(this.selectedElement));
+            clone.id = 'el_' + Math.random().toString(36).substr(2, 6);
+            clone.name += '_Copy';
+            clone.x += 30;
+            clone.y += 30;
+            this.model.nodes.push(clone);
+            this.selectedElement = clone;
+            this.updateInspector();
+        });
+    }
+
+    loop() {
+        this.animPhase++;
+        this.runPowerFlow();
+        this.render();
+        requestAnimationFrame(() => this.loop());
+    }
+
+    render() {
+        const ctx = this.ctx;
+        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        ctx.save();
+        ctx.translate(this.pan.x, this.pan.y);
+        ctx.scale(this.zoom, this.zoom);
+
+        this.drawGridBackground();
+
+        const wireGroups = this.getWireGroups();
+
+        this.model.wires.forEach(w => {
+            const n1 = this.model.nodes.find(n => n.id === w.from);
+            const n2 = this.model.nodes.find(n => n.id === w.to);
+            if (!n1 || !n2) return;
+
+            const isSelected = this.selectedWire && this.selectedWire.id === w.id;
+            const isOverloaded = this.autoSolve && (w.loading || 0) > 100;
+            
+            const group = wireGroups[[n1.id, n2.id].sort().join('-')];
+            const index = group.indexOf(w);
+            const offset = (index - (group.length - 1) / 2) * 20;
+
+            let p1 = this.getConnectionPoint(n1, n2, offset);
+            let p2 = this.getConnectionPoint(n2, n1, offset);
+
+            let drawMidX = (p1.x + p2.x) / 2;
+            if (n1.type !== 'bus' && n2.type !== 'bus') drawMidX += offset;
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(drawMidX, p1.y);
+            ctx.lineTo(drawMidX, p2.y);
+            ctx.lineTo(p2.x, p2.y);
+
+            ctx.lineWidth = isSelected ? 4 : 2;
+            ctx.strokeStyle = w.status === 'open' ? '#4b5563' : (isOverloaded ? '#f87171' : '#60a5fa');
+            if (w.status === 'open') ctx.setLineDash([4, 4]);
+            else ctx.setLineDash([]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            let len1 = Math.abs(drawMidX - p1.x);
+            let len2 = Math.abs(p2.y - p1.y);
+            let len3 = Math.abs(p2.x - drawMidX);
+            let totalLen = len1 + len2 + len3;
+
+            if (this.autoSolve && w.status === 'closed' && (w.flow || 0) > 0 && totalLen > 0) {
+                const particleCount = 3;
+                const dir = w.direction || 1; 
+                for (let i = 0; i < particleCount; i++) {
+                    let rawT = (this.animPhase * 0.015 + i / particleCount);
+                    let tVal = dir > 0 ? rawT : (1.0 - (rawT % 1));
+                    let d = (tVal % 1) * totalLen;
+                    let px, py;
+                    
+                    if (d <= len1) {
+                        let pct = len1 > 0 ? d / len1 : 0;
+                        px = p1.x + (drawMidX - p1.x) * pct;
+                        py = p1.y;
+                    } else if (d <= len1 + len2) {
+                        let pct = len2 > 0 ? (d - len1) / len2 : 0;
+                        px = drawMidX;
+                        py = p1.y + (p2.y - p1.y) * pct;
+                    } else {
+                        let pct = len3 > 0 ? (d - len1 - len2) / len3 : 0;
+                        px = drawMidX + (p2.x - drawMidX) * pct;
+                        py = p2.y;
+                    }
+
+                    ctx.fillStyle = isOverloaded ? '#f87171' : '#34d399';
+                    ctx.beginPath();
+                    ctx.arc(px, py, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            if (this.autoSolve) {
+                let labelD = totalLen * 0.5;
+                let labelX, labelY;
+                if (labelD <= len1) {
+                    let pct = len1 > 0 ? labelD / len1 : 0;
+                    labelX = p1.x + (drawMidX - p1.x) * pct;
+                    labelY = p1.y;
+                } else if (labelD <= len1 + len2) {
+                    let pct = len2 > 0 ? (labelD - len1) / len2 : 0;
+                    labelX = drawMidX;
+                    labelY = p1.y + (p2.y - p1.y) * pct;
+                } else {
+                    let pct = len3 > 0 ? (labelD - len1 - len2) / len3 : 0;
+                    labelX = drawMidX + (p2.x - drawMidX) * pct;
+                    labelY = p2.y;
+                }
+
+                ctx.fillStyle = 'rgba(17, 24, 39, 0.85)';
+                ctx.strokeStyle = isOverloaded ? '#f87171' : '#374151';
+                ctx.lineWidth = 1;
+                ctx.fillRect(labelX - 25, labelY - 10, 50, 20);
+                ctx.strokeRect(labelX - 25, labelY - 10, 50, 20);
+
+                ctx.fillStyle = isOverloaded ? '#f87171' : '#34d399';
+                ctx.font = '10px monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`${(w.flow || 0).toFixed(1)}M`, labelX, labelY);
+            }
+        });
+
+        if (this.mode === 'wire' && this.wireStartNode) {
+            ctx.beginPath();
+            ctx.moveTo(this.wireStartNode.x, this.wireStartNode.y);
+            ctx.lineTo(this.mousePos.x, this.mousePos.y);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        this.model.nodes.forEach(n => {
+            const isSelected = this.selectedElement && this.selectedElement.id === n.id;
+            ctx.save();
+            ctx.translate(n.x, n.y);
+
+            if (n.type === 'bus') {
+                const w = n.width || 140;
+                const h = n.height || 16;
+                const col = VoltageColors[n.voltage] || '#ef4444';
+                
+                ctx.fillStyle = col;
+                ctx.fillRect(-w/2, -h/2, w, h);
+                if (isSelected) {
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(-w/2 - 2, -h/2 - 2, w + 4, h + 4);
+                }
+
+                ctx.fillStyle = '#f3f4f6';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(n.name || "", 0, -h/2 - 8);
+                ctx.font = '9px sans-serif';
+                ctx.fillStyle = '#9ca3af';
+                ctx.fillText(n.voltage || "", 0, h/2 + 12);
+
+            } else if (n.type === 'generator') {
+                ctx.beginPath();
+                ctx.arc(0, 0, 20, 0, Math.PI * 2);
+                ctx.fillStyle = '#111827';
+                ctx.fill();
+                ctx.strokeStyle = isSelected ? '#ffffff' : '#34d399';
+                ctx.lineWidth = isSelected ? 3 : 2;
+                ctx.stroke();
+
+                ctx.fillStyle = '#34d399';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('G', 0, 0);
+
+                ctx.fillStyle = '#f3f4f6';
+                ctx.font = '10px sans-serif';
+                ctx.fillText(n.name || "", 0, 28);
+                
+                let currentOutput = this.autoSolve ? ((n.displayMw !== undefined) ? n.displayMw : (n.mw || 0)).toFixed(1) : 'OFF';
+                ctx.fillText(`${currentOutput} / ${n.mw || 0} MW`, 0, 40);
+
+            } else if (n.type === 'load') {
+                ctx.fillStyle = '#111827';
+                ctx.beginPath();
+                ctx.moveTo(0, 18);
+                ctx.lineTo(-18, -14);
+                ctx.lineTo(18, -14);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = isSelected ? '#ffffff' : '#f59e0b';
+                ctx.lineWidth = isSelected ? 3 : 2;
+                ctx.stroke();
+
+                ctx.fillStyle = '#f59e0b';
+                ctx.font = 'bold 10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('L', 0, 2);
+
+                ctx.fillStyle = '#f3f4f6';
+                ctx.font = '10px sans-serif';
+                ctx.fillText(n.name || "", 0, 28);
+                
+                let actualLoad = this.autoSolve ? ((n.displayMw !== undefined) ? n.displayMw : (n.mw || 0)).toFixed(1) + ' MW' : 'OFF';
+                ctx.fillText(`${actualLoad}`, 0, 40);
+
+            } else if (n.type === 'transformer') {
+                const isOverloaded = this.autoSolve && (n.loading || 0) > 100;
+                ctx.fillStyle = '#111827';
+                ctx.beginPath();
+                ctx.arc(0, -8, 12, 0, Math.PI * 2);
+                ctx.arc(0, 8, 12, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = isSelected ? '#ffffff' : (isOverloaded ? '#f87171' : '#60a5fa');
+                ctx.lineWidth = isSelected ? 3 : (isOverloaded ? 3 : 2);
+                ctx.stroke();
+
+                ctx.fillStyle = isOverloaded ? '#f87171' : '#f3f4f6';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(n.name || "", 0, 28);
+
+            } else if (n.type === 'breaker') {
+                ctx.fillStyle = n.status === 'open' ? '#7f1d1d' : '#111827';
+                ctx.fillRect(-12, -12, 24, 24);
+                ctx.strokeStyle = isSelected ? '#ffffff' : '#ef4444';
+                ctx.lineWidth = isSelected ? 3 : 2;
+                ctx.strokeRect(-12, -12, 24, 24);
+
+                ctx.fillStyle = '#ef4444';
+                ctx.font = 'bold 9px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('CB', 0, 0);
+
+                ctx.fillStyle = '#f3f4f6';
+                ctx.font = '10px sans-serif';
+                ctx.fillText(n.name || "", 0, 24);
+            }
+
+            ctx.restore();
+        });
+
+        ctx.restore();
+    }
+
+    drawGridBackground() {
+        const ctx = this.ctx;
+        const gridSize = 40 * this.zoom;
+        const offsetX = this.pan.x % gridSize;
+        const offsetY = this.pan.y % gridSize;
+
+        ctx.strokeStyle = '#1f2937';
+        ctx.lineWidth = 1;
+
+        for (let x = offsetX; x < this.canvas.width; x += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, this.canvas.height);
+            ctx.stroke();
+        }
+        for (let y = offsetY; y < this.canvas.height; y += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(this.canvas.width, y);
+            ctx.stroke();
+        }
+    }
+}
+
+function GaussianElimination(A, b) {
+    let n = b.length;
+    for (let i = 0; i < n; i++) {
+        let maxEl = Math.abs(A[i][i]);
+        let maxRow = i;
+        for (let k = i + 1; k < n; k++) {
+            if (Math.abs(A[k][i]) > maxEl) {
+                maxEl = Math.abs(A[k][i]);
+                maxRow = k;
+            }
+        }
+
+        let temp = A[maxRow];
+        A[maxRow] = A[i];
+        A[i] = temp;
+
+        let tempB = b[maxRow];
+        b[maxRow] = b[i];
+        b[i] = tempB;
+
+        for (let k = i + 1; k < n; k++) {
+            let c = -A[k][i] / (A[i][i] || 1e-9);
+            for (let j = i; j < n; j++) {
+                if (i === j) {
+                    A[k][j] = 0;
+                } else {
+                    A[k][j] += c * A[i][j];
+                }
+            }
+            b[k] += c * b[i];
+        }
+    }
+
+    let x = Array(n).fill(0);
+    for (let i = n - 1; i >= 0; i--) {
+        let sum = 0;
+        for (let j = i + 1; j < n; j++) {
+            sum += A[i][j] * x[j];
+        }
+        x[i] = (b[i] - sum) / (A[i][i] || 1e-9);
+    }
+    return x;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    window.app = new SLDApp();
+});
+</script>
+</body>
+</html>
